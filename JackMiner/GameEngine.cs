@@ -63,7 +63,6 @@ public sealed class GameEngine
     private readonly List<BlackjackHand> _hands = [];
 
     public decimal Balance { get; private set; } = 1000m;
-    public decimal CurrentWager { get; private set; }
     public IReadOnlyList<BlackjackHand> Hands => _hands;
     public BlackjackHand Dealer { get; } = new();
     public int ActiveHandIndex { get; private set; }
@@ -80,13 +79,11 @@ public sealed class GameEngine
 
     public bool StartRound(decimal wager)
     {
-        if (RoundInProgress || wager <= 0 || wager > 300 || Balance < wager) return false;
-        if (wager % 5 != 0) return false;
-
+        if (RoundInProgress || wager <= 0 || wager > 300 || Balance < wager || wager % 5 != 0) return false;
         if (_shoe.Count - _nextCard < 52) BuildShoe();
+
         Balance -= wager;
         LastNet = 0;
-        CurrentWager = wager;
         Dealer.Cards.Clear();
         Dealer.IsFinished = false;
         _hands.Clear();
@@ -101,21 +98,28 @@ public sealed class GameEngine
         _hands.Add(hand);
         RoundInProgress = true;
 
-        if (hand.IsBlackjack)
+        if (Dealer.Total == 21)
         {
             DealerRevealed = true;
-            if (Dealer.Total == 21)
+            if (hand.IsBlackjack)
             {
-                Balance += wager * 2;
+                Balance += wager;
                 Status = "Push — both you and the dealer have blackjack.";
+                LastNet = 0;
             }
             else
             {
-                Balance += wager * 2.5m;
-                Status = "BLACKJACK! Paid 3:2.";
+                Status = "Dealer blackjack. Hand lost.";
+                LastNet = -wager;
             }
-            LastNet = Balance - (Balance + wager - wager); // replaced below with explicit round accounting
-            LastNet = Dealer.Total == 21 ? 0 : wager * 1.5m;
+            EndRound();
+        }
+        else if (hand.IsBlackjack)
+        {
+            DealerRevealed = true;
+            Balance += wager * 2.5m;
+            LastNet = wager * 1.5m;
+            Status = "BLACKJACK! Paid 3:2.";
             EndRound();
         }
         else
@@ -148,8 +152,9 @@ public sealed class GameEngine
     public void Stand()
     {
         if (!CanStand) return;
-        ActiveHand!.IsFinished = true;
-        Status = $"Hand {ActiveHandIndex + 1} stands on {ActiveHand!.Total}.";
+        var hand = ActiveHand!;
+        hand.IsFinished = true;
+        Status = $"Hand {ActiveHandIndex + 1} stands on {hand.Total}.";
         AdvanceHand();
     }
 
@@ -201,12 +206,11 @@ public sealed class GameEngine
     private void ResolveDealerAndPayouts()
     {
         DealerRevealed = true;
-        var liveHands = _hands.Where(h => !h.IsBust).ToList();
-        if (liveHands.Count > 0)
+        if (_hands.Any(h => !h.IsBust))
         {
-            while (Dealer.Total < 17 || (Dealer.Total == 17 && Dealer.IsSoft == false && false))
+            while (Dealer.Total < 17)
                 Dealer.Cards.Add(Draw());
-            // Dealer stands on all 17s, including soft 17.
+            // Dealer stands on soft 17 as well as hard 17.
         }
 
         decimal returned = 0;
