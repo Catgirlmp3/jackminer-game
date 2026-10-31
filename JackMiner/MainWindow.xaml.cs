@@ -70,11 +70,10 @@ public partial class MainWindow : Window
     {
         if (_game.RoundInProgress)
         {
-            TableStatus.Text = "Finish the current round before starting a new shoe.";
+            TableStatus.Text = "Finish the current round before clearing your bet.";
             return;
         }
         _selectedWager = 0;
-        TableStatus.Text = "New shoe ready. Place your bet.";
         RefreshTable();
     }
 
@@ -88,13 +87,14 @@ public partial class MainWindow : Window
             _game.LastNet < 0 ? $"You lost {Math.Abs(_game.LastNet):C2} this round." : "Ready for the next hand.";
 
         DealerCards.Children.Clear();
-        foreach (var card in _game.Dealer.Cards)
+        for (var i = 0; i < _game.Dealer.Cards.Count; i++)
         {
-            var hidden = _game.RoundInProgress && !_game.DealerRevealed && _game.Dealer.Cards.IndexOf(card) == 1;
+            var card = _game.Dealer.Cards[i];
+            var hidden = _game.RoundInProgress && !_game.DealerRevealed && i == 1;
             DealerCards.Children.Add(CreateCard(hidden ? "?" : card.ToString(), hidden ? false : card.IsRed, hidden));
         }
         DealerTotal.Text = _game.DealerRevealed ? $"  •  {_game.Dealer.Total}" :
-            _game.Dealer.Cards.Count > 0 ? $"  •  { _game.Dealer.Cards[0].Value } + ?" : "  •  —";
+            _game.Dealer.Cards.Count > 0 ? $"  •  {_game.Dealer.Cards[0].Value} + ?" : "  •  —";
 
         PlayerCards.Children.Clear();
         if (_game.Hands.Count == 0)
@@ -103,19 +103,19 @@ public partial class MainWindow : Window
         }
         else
         {
-            PlayerLabel.Text = _game.Hands.Count > 1 ? $"YOUR HANDS  •  ACTIVE: {_game.ActiveHandIndex + 1}" : "YOUR HAND";
-            foreach (var hand in _game.Hands)
+            PlayerLabel.Text = _game.Hands.Count > 1 ? $"YOUR HANDS  •  ACTIVE: {Math.Min(_game.ActiveHandIndex + 1, _game.Hands.Count)}" : "YOUR HAND";
+            for (var i = 0; i < _game.Hands.Count; i++)
             {
+                var hand = _game.Hands[i];
                 var handPanel = new StackPanel { Margin = new Thickness(8, 0, 8, 0) };
-                var heading = new TextBlock
+                handPanel.Children.Add(new TextBlock
                 {
-                    Text = $"HAND  { _game.Hands.IndexOf(hand) + 1 }  •  {hand.Total}  •  BET €{hand.Bet:0.00}",
+                    Text = $"HAND {i + 1}  •  {hand.Total}  •  BET €{hand.Bet:0.00}",
                     Foreground = hand == _game.ActiveHand ? Brushes.White : new SolidColorBrush(Color.FromRgb(164, 157, 177)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     FontSize = 10,
                     Margin = new Thickness(0, 0, 0, 5)
-                };
-                handPanel.Children.Add(heading);
+                });
                 var cards = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
                 foreach (var card in hand.Cards) cards.Children.Add(CreateCard(card.ToString(), card.IsRed, false));
                 handPanel.Children.Add(cards);
@@ -134,7 +134,7 @@ public partial class MainWindow : Window
 
     private static Border CreateCard(string face, bool isRed, bool hidden)
     {
-        var border = new Border
+        return new Border
         {
             Width = 76,
             Height = 108,
@@ -153,6 +153,5 @@ public partial class MainWindow : Window
                 VerticalAlignment = VerticalAlignment.Center
             }
         };
-        return border;
     }
 }
