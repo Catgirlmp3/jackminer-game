@@ -21,6 +21,6 @@ If Not fso.FileExists(appPath) Then
     WScript.Quit 1
 End If
 
-command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command " & _
+command = "powershell.exe -NoProfile -Command " & _
     """Start-Process -FilePath '" & Replace(appPath, "'", "''") & "' -Verb RunAs"""
 shell.Run command, 0, False
