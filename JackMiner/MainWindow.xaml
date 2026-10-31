@@ -65,7 +65,7 @@
                     <Separator Background="#383144" Margin="0,14,0,12"/>
                     <TextBlock Text="ROUND RESULT" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
                     <TextBlock x:Name="ResultText" Text="Ready when you are." TextWrapping="Wrap" FontSize="13" Margin="4,2,4,10"/>
-                    <Button Content="NEW SHOE / RESET TABLE" Click="Reset_Click" Background="#292533"/>
+                    <Button Content="CLEAR BET" Click="Reset_Click" Background="#292533"/>
                 </StackPanel>
             </Border>
         </Grid>
