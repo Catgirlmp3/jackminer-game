@@ -1,0 +1,158 @@
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+
+namespace JackMiner;
+
+public partial class MainWindow : Window
+{
+    private readonly GameEngine _game = new();
+    private decimal _selectedWager;
+    private readonly decimal[] _chips = [5, 10, 25, 50, 75, 100, 200];
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        BuildChips();
+        RefreshTable();
+    }
+
+    private void BuildChips()
+    {
+        foreach (var amount in _chips)
+        {
+            var button = new Button
+            {
+                Content = $"€{amount}",
+                Padding = new Thickness(9, 7, 9, 7),
+                Margin = new Thickness(3),
+                MinWidth = 58,
+                Background = new SolidColorBrush(Color.FromRgb(49, 43, 62))
+            };
+            button.Click += (_, _) =>
+            {
+                if (_game.RoundInProgress) return;
+                if (_selectedWager + amount > 300 || _selectedWager + amount > _game.Balance)
+                {
+                    TableStatus.Text = "Maximum wager is €300 and cannot exceed your balance.";
+                    return;
+                }
+                _selectedWager += amount;
+                RefreshTable();
+            };
+            ChipPanel.Children.Add(button);
+        }
+    }
+
+    private void Deal_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedWager <= 0)
+        {
+            TableStatus.Text = "Choose at least one chip first.";
+            return;
+        }
+        if (!_game.StartRound(_selectedWager))
+        {
+            TableStatus.Text = "Unable to deal. Check your wager and balance.";
+            return;
+        }
+        _selectedWager = 0;
+        RefreshTable();
+    }
+
+    private void Hit_Click(object sender, RoutedEventArgs e) { _game.Hit(); RefreshTable(); }
+    private void Stand_Click(object sender, RoutedEventArgs e) { _game.Stand(); RefreshTable(); }
+    private void Double_Click(object sender, RoutedEventArgs e) { _game.DoubleDown(); RefreshTable(); }
+    private void Split_Click(object sender, RoutedEventArgs e) { _game.Split(); RefreshTable(); }
+
+    private void Reset_Click(object sender, RoutedEventArgs e)
+    {
+        if (_game.RoundInProgress)
+        {
+            TableStatus.Text = "Finish the current round before starting a new shoe.";
+            return;
+        }
+        _selectedWager = 0;
+        TableStatus.Text = "New shoe ready. Place your bet.";
+        RefreshTable();
+    }
+
+    private void RefreshTable()
+    {
+        BalanceText.Text = _game.Balance.ToString("C2", CultureInfo.GetCultureInfo("en-IE"));
+        WagerText.Text = _selectedWager.ToString("C0", CultureInfo.GetCultureInfo("en-IE"));
+        TableStatus.Text = _game.Status;
+        ResultText.Text = _game.RoundInProgress ? "Round in progress." :
+            _game.LastNet > 0 ? $"You won {_game.LastNet:C2} this round." :
+            _game.LastNet < 0 ? $"You lost {Math.Abs(_game.LastNet):C2} this round." : "Ready for the next hand.";
+
+        DealerCards.Children.Clear();
+        foreach (var card in _game.Dealer.Cards)
+        {
+            var hidden = _game.RoundInProgress && !_game.DealerRevealed && _game.Dealer.Cards.IndexOf(card) == 1;
+            DealerCards.Children.Add(CreateCard(hidden ? "?" : card.ToString(), hidden ? false : card.IsRed, hidden));
+        }
+        DealerTotal.Text = _game.DealerRevealed ? $"  •  {_game.Dealer.Total}" :
+            _game.Dealer.Cards.Count > 0 ? $"  •  { _game.Dealer.Cards[0].Value } + ?" : "  •  —";
+
+        PlayerCards.Children.Clear();
+        if (_game.Hands.Count == 0)
+        {
+            PlayerLabel.Text = "YOUR HAND";
+        }
+        else
+        {
+            PlayerLabel.Text = _game.Hands.Count > 1 ? $"YOUR HANDS  •  ACTIVE: {_game.ActiveHandIndex + 1}" : "YOUR HAND";
+            foreach (var hand in _game.Hands)
+            {
+                var handPanel = new StackPanel { Margin = new Thickness(8, 0, 8, 0) };
+                var heading = new TextBlock
+                {
+                    Text = $"HAND  { _game.Hands.IndexOf(hand) + 1 }  •  {hand.Total}  •  BET €{hand.Bet:0.00}",
+                    Foreground = hand == _game.ActiveHand ? Brushes.White : new SolidColorBrush(Color.FromRgb(164, 157, 177)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    FontSize = 10,
+                    Margin = new Thickness(0, 0, 0, 5)
+                };
+                handPanel.Children.Add(heading);
+                var cards = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
+                foreach (var card in hand.Cards) cards.Children.Add(CreateCard(card.ToString(), card.IsRed, false));
+                handPanel.Children.Add(cards);
+                PlayerCards.Children.Add(handPanel);
+            }
+        }
+
+        HitButton.IsEnabled = _game.CanHit;
+        StandButton.IsEnabled = _game.CanStand;
+        DoubleButton.IsEnabled = _game.CanDouble;
+        SplitButton.IsEnabled = _game.CanSplit;
+        DealButton.IsEnabled = !_game.RoundInProgress && _selectedWager > 0 && _selectedWager <= _game.Balance;
+        foreach (Button chip in ChipPanel.Children)
+            chip.IsEnabled = !_game.RoundInProgress && _selectedWager < 300 && _selectedWager < _game.Balance;
+    }
+
+    private static Border CreateCard(string face, bool isRed, bool hidden)
+    {
+        var border = new Border
+        {
+            Width = 76,
+            Height = 108,
+            Margin = new Thickness(5),
+            CornerRadius = new CornerRadius(9),
+            Background = hidden ? new SolidColorBrush(Color.FromRgb(90, 58, 119)) : Brushes.White,
+            BorderBrush = hidden ? new SolidColorBrush(Color.FromRgb(184, 137, 219)) : new SolidColorBrush(Color.FromRgb(218, 214, 224)),
+            BorderThickness = new Thickness(1),
+            Child = new TextBlock
+            {
+                Text = face,
+                FontSize = 25,
+                FontWeight = FontWeights.Bold,
+                Foreground = hidden ? Brushes.White : (isRed ? Brushes.Firebrick : Brushes.Black),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+        return border;
+    }
+}
