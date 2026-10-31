@@ -185,11 +185,9 @@ public sealed class GameEngine
         second.Cards.Add(Draw());
         _hands.Add(second);
         Status = "Hands split. Play the first hand.";
-        if (original.Total == 21)
-        {
-            original.IsFinished = true;
-            AdvanceHand();
-        }
+        if (original.Total == 21) original.IsFinished = true;
+        if (second.Total == 21) second.IsFinished = true;
+        if (original.IsFinished) AdvanceHand();
     }
 
     private void AdvanceHand()
