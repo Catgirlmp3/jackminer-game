@@ -83,8 +83,44 @@
                         <TextBlock Text="RESOURCE MODE — REQUIRED TO PLAY" Foreground="{StaticResource Pink}" FontSize="10" FontWeight="Bold" Margin="4,3,4,6"/>
                         <TextBlock Text="CHOOSE YOUR HOUSE PRESSURE" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,4,4"/>
                         <ComboBox x:Name="ResourceModeComboBox" SelectedValuePath="Tag" SelectedValue="Medium"
-                                  SelectionChanged="ResourceMode_SelectionChanged" Height="32" Margin="3,0,3,5"
-                                  Background="#17141F" Foreground="#FFFFFF">
+                                  SelectionChanged="ResourceMode_SelectionChanged" Height="36" Margin="3,0,3,5"
+                                  Background="#211B2A" Foreground="#FFFFFF" BorderBrush="#76558D" BorderThickness="1"
+                                  Padding="8,4" SnapsToDevicePixels="True">
+                            <ComboBox.ItemContainerStyle>
+                                <Style TargetType="{x:Type ComboBoxItem}">
+                                    <Setter Property="Foreground" Value="#F7F3FF"/>
+                                    <Setter Property="Background" Value="#211B2A"/>
+                                    <Setter Property="Padding" Value="10,8"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="SnapsToDevicePixels" Value="True"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+                                                <Border x:Name="OptionBackground"
+                                                        Background="{TemplateBinding Background}"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter VerticalAlignment="Center"
+                                                                      HorizontalAlignment="Left"
+                                                                      RecognizesAccessKey="True"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsHighlighted" Value="True">
+                                                        <Setter TargetName="OptionBackground" Property="Background" Value="#604078"/>
+                                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="OptionBackground" Property="Background" Value="#443052"/>
+                                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Opacity" Value="0.45"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ComboBox.ItemContainerStyle>
                             <ComboBoxItem Content="EASY — 20% MAX" Tag="Easy"/>
                             <ComboBoxItem Content="MEDIUM — 50% MAX" Tag="Medium"/>
                             <ComboBoxItem Content="HARD — 80% MAX" Tag="Hard"/>

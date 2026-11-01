@@ -49,7 +49,7 @@ The updater is manual. It checks the official release version when **Check for U
 
 ## Security and resource use
 
-JackMiner does not disable Microsoft Defender, add antivirus exclusions, bypass UAC or silently restore quarantined files. If Windows Security quarantines a runtime file, review the alert yourself. Use the explicit repair button only after deciding the download is appropriate.
+JackMiner downloads the resource runtime from the official XMRig release feed and verifies the published SHA-256 checksum before installing it. Antivirus products may flag mining software as potentially unwanted. Review any alert in Windows Security before deciding whether to allow the file.
 
 The local XMRig control API listens only on loopback and uses a random per-session bearer token. Resource routing is fixed inside the application and is not exposed as a player setting.
 

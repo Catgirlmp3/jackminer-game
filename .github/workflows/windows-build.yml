@@ -25,6 +25,52 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Verify official XMRig Windows x64 download
+        shell: pwsh
+        run: |
+          $headers = @{ "User-Agent" = "JackMiner/1.0"; "Accept" = "application/json" }
+          $release = Invoke-RestMethod -Uri "https://api.xmrig.com/1/latest_release/xmrig" -Headers $headers -TimeoutSec 60
+
+          if (-not $release.version -or -not $release.assets) {
+            throw "The official XMRig release feed returned incomplete metadata."
+          }
+
+          $asset = $release.assets |
+            Where-Object { $_.os -eq "windows-x64" -and $_.name -like "*-windows-x64.zip" } |
+            Select-Object -First 1
+
+          if (-not $asset) {
+            throw "The official XMRig feed did not list its Windows x64 ZIP."
+          }
+          if ($asset.url -notmatch '^https://github\.com/xmrig/xmrig/releases/download/' -or
+              $asset.hash -notmatch '^[0-9a-fA-F]{64}$' -or
+              [long]$asset.size -le 0 -or [long]$asset.size -gt 52428800) {
+            throw "The official XMRig Windows x64 package metadata failed validation."
+          }
+
+          $archivePath = Join-Path $env:RUNNER_TEMP "xmrig-windows-x64.zip"
+          Invoke-WebRequest -Uri $asset.url -Headers @{ "User-Agent" = "JackMiner/1.0" } -OutFile $archivePath -TimeoutSec 120
+
+          $actualHash = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $asset.hash.ToLowerInvariant()) {
+            throw "The downloaded XMRig package did not match the release SHA-256."
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
+          try {
+            $miner = $archive.Entries | Where-Object { $_.Name -ceq "xmrig.exe" } | Select-Object -First 1
+            if (-not $miner) {
+              throw "The verified XMRig archive did not contain xmrig.exe."
+            }
+          }
+          finally {
+            $archive.Dispose()
+            Remove-Item $archivePath -Force -ErrorAction SilentlyContinue
+          }
+
+          Write-Host "Verified XMRig $($release.version): $($asset.name) ($($asset.size) bytes)."
+
       - name: Build WPF application
         run: dotnet build JackMiner/JackMiner.csproj --configuration Release
 

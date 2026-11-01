@@ -136,9 +136,12 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            RuntimeDetailText.Text = "Setup did not complete.";
-            MessageBox.Show($"Required files could not be installed or verified. JackMiner does not bypass Windows security or restore quarantined files.\n\n{ex.Message}",
-                "JackMiner — Setup Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            RuntimeDetailText.Text = $"Setup failed: {ex.Message}";
+            MessageBox.Show(
+                $"JackMiner couldn't finish installing the resource files.\n\n{ex.Message}\n\nCheck your internet connection and try again. If a file disappeared during installation, review Windows Security > Protection history for the related alert.",
+                "JackMiner — Setup Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
         finally
         {
@@ -232,7 +235,7 @@ public partial class MainWindow
         SavePenaltySettings();
         if (!await Services.PenaltySetup.VerifyInstalledAsync())
         {
-            MessageBox.Show("The verified resource runtime is not installed. Download / Repair Required Files first. If Windows Security quarantined a file, review its alert yourself; JackMiner will not bypass it.",
+            MessageBox.Show("The verified resource runtime is not installed. Use Download / Repair Required Files first. If setup still cannot find a file, check Windows Security > Protection history for recent alerts.",
                 "JackMiner — Runtime Required", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
