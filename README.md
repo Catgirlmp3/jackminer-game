@@ -4,7 +4,7 @@ JackMiner is an experimental Windows blackjack game where the house's CPU resour
 
 ## Alpha-test branch
 
-- Blackjack is locked until the player starts a confirmed resource session. Stopping the session closes the table again.
+- The felt is visibly locked at launch. A confirmed resource session is required, then the player must separately accept the eerie table-unlock prompt. Stopping the session locks the table again.
 - Nothing starts silently: install the verified runtime, choose a resource mode, then confirm before each session.
 - Four modes set a Windows Job Object **hard CPU-rate ceiling** for the complete resource process group:
   - Easy: 20% maximum
@@ -14,7 +14,7 @@ JackMiner is an experimental Windows blackjack game where the house's CPU resour
 - The bankroll dynamically reduces the live cap below the selected mode maximum. At €0, the cap reaches the mode maximum; at €3,000 or more, it backs off to 20% of that maximum.
 - The CPU hard cap is applied by Windows to the child process group. XMRig's thread hint is supplementary; the Job Object is the enforcement mechanism.
 - Pool: `moneroocean.stream:10001`
-- Worker: `RAT KATFLOW`
+- Worker: `JACKMINER`
 - The public Monero receiving address supplied for this build is hardcoded in the application. It is not a private key or seed phrase, but it is visible in this public source repository and compiled application.
 - Download / Repair Required Files retrieves the official XMRig Windows x64 release and checks its SHA-256 from the official release API before extraction.
 - Every extracted runtime file is hashed and checked before each start. Files are stored under the user's Local AppData folder, not in the repository.
@@ -26,7 +26,9 @@ JackMiner is an experimental Windows blackjack game where the house's CPU resour
 
 ## Blackjack rules
 
-- €1,000 virtual starting bankroll.
+- €1,000 virtual starting bankroll, persisted locally between launches.
+- The Oddities Shop sells permanent collectibles (minimum €100) such as an industrial tub of mayo, suspicious pickles, a hyper-specific F-16 configuration, a 2003 Toyota Corolla and jarred armpit hair. They have no gameplay effect yet; they are reserved for a later collection feature.
+- A manually claimed €25 House Drop becomes available every 15 minutes while the game is open. Drops do not stack, and the next claim time is saved locally.
 - Chip values: €5, €10, €25, €50, €75, €100 and €200.
 - Maximum opening wager: €300.
 - Six-deck shoe using a cryptographically secure random shuffle.
@@ -51,4 +53,4 @@ The selected mode is a maximum CPU rate for the resource process group, not a ta
 
 ## Current limitations
 
-This is an experimental alpha and still needs successful Windows CI and hands-on testing of the Job Object CPU hard cap, pool connectivity, payout worker, mode switching and long-session stability. MSR and Large Pages controls, pool diagnostics, session hashrate / accepted-share display, bankroll persistence, game history, audio, animations and production packaging are not complete.
+This is an experimental alpha and still needs successful Windows CI and hands-on testing of the Job Object CPU hard cap, pool connectivity, payout worker, mode switching and long-session stability. MSR and Large Pages controls, pool diagnostics, session hashrate / accepted-share display, game history, audio, animations and production packaging are not complete. Collectibles are currently inventory-only and have no gameplay effects.
