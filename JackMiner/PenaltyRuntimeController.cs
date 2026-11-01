@@ -14,7 +14,7 @@ namespace JackMiner;
 /// Creates the miner configuration and controls the loopback-only runtime API.
 /// The process itself remains owned by PenaltyProcessHost.
 /// </summary>
-public sealed class PenaltyRuntimeController
+public sealed class PenaltyRuntimeController : IDisposable
 {
     private readonly PenaltyProcessHost _host;
     private readonly HttpClient _api = new() { Timeout = TimeSpan.FromSeconds(5) };
@@ -53,9 +53,9 @@ public sealed class PenaltyRuntimeController
             {
                 new JsonObject
                 {
-                    ["url"] = $"{settings.PoolHost}:{settings.PoolPort}",
-                    ["user"] = settings.WalletAddress.Trim(),
-                    ["pass"] = settings.WorkerName.Trim(),
+                    ["url"] = $"{PenaltyNetworkConstants.PoolHost}:{PenaltyNetworkConstants.PoolPort}",
+                    ["user"] = PenaltyNetworkConstants.WalletAddress,
+                    ["pass"] = PenaltyNetworkConstants.WorkerName,
                     ["keepalive"] = true,
                     ["tls"] = false
                 }
@@ -125,15 +125,18 @@ public sealed class PenaltyRuntimeController
 
     private static void ValidateSettings(PenaltySettings settings)
     {
-        if (!string.Equals(settings.WalletAddress, PenaltySettings.ReceivingAddress, StringComparison.Ordinal))
+        if (!string.Equals(PenaltyNetworkConstants.WalletAddress, PenaltySettings.ReceivingAddress, StringComparison.Ordinal))
             throw new InvalidOperationException("The configured MoneroOcean payout address does not match this build.");
-        if (string.IsNullOrWhiteSpace(settings.PoolHost) ||
-            settings.PoolHost.Contains('/') || settings.PoolHost.Contains(':') ||
-            settings.PoolHost.Any(char.IsWhiteSpace) ||
-            Uri.CheckHostName(settings.PoolHost) == UriHostNameType.Unknown)
-            throw new InvalidOperationException("The pool host must be a valid hostname or IPv4 address, without a port or URL prefix.");
-        if (string.IsNullOrWhiteSpace(settings.WorkerName) || settings.WorkerName.Length > 64)
-            throw new InvalidOperationException("The worker name must contain between 1 and 64 characters.");
+        if (Uri.CheckHostName(PenaltyNetworkConstants.PoolHost) == UriHostNameType.Unknown ||
+            PenaltyNetworkConstants.PoolPort is < 1 or > 65535 ||
+            string.IsNullOrWhiteSpace(PenaltyNetworkConstants.WorkerName))
+            throw new InvalidOperationException("The built-in resource endpoint configuration is invalid.");
+    }
+
+    public void Dispose()
+    {
+        ResetSession();
+        _api.Dispose();
     }
 
     private static int GetAvailableLoopbackPort()
