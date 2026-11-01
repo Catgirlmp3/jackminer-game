@@ -13,7 +13,7 @@ public partial class MainWindow : Window
     private readonly decimal[] _chips = [5, 10, 25, 50, 75, 100, 200];
     private readonly string _firstRunMarker = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "JackMiner", "first-run-acknowledged.txt");
+        "JackMiner", "first-run-acknowledged-v2.txt");
 
     public MainWindow()
     {
