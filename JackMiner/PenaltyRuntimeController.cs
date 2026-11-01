@@ -21,6 +21,7 @@ public sealed class PenaltyRuntimeController : IDisposable
     private JsonObject? _activeConfiguration;
     private Uri? _apiEndpoint;
     private string? _apiToken;
+    private string? _logPath;
 
     public PenaltyRuntimeController(PenaltyProcessHost host) => _host = host;
 
@@ -36,6 +37,7 @@ public sealed class PenaltyRuntimeController : IDisposable
             ?? throw new InvalidOperationException("The runtime directory could not be resolved.");
         var configPath = Path.Combine(runtimeDirectory, "session-config.json");
         var logPath = Path.Combine(runtimeDirectory, "session.log");
+        _logPath = logPath;
         var port = GetAvailableLoopbackPort();
         var poolPort = PenaltyNetworkConstants.SelectPoolPort(cpuTarget);
         progress?.Report($"Preparing XMRig for {PenaltyNetworkConstants.PoolHost}:{poolPort}...");
@@ -136,7 +138,7 @@ public sealed class PenaltyRuntimeController : IDisposable
                 progress?.Report($"XMRig is running but has no hashrate yet. Algorithm: {latest.Algorithm}; pool: {latest.PoolStatus}.");
             }
             catch (Exception ex) when (
-                ex is HttpRequestException or JsonException or IOException &&
+                (ex is HttpRequestException or JsonException or IOException or TaskCanceledException) &&
                 !cancellationToken.IsCancellationRequested)
             {
                 lastApiError = ex.Message;
@@ -149,7 +151,7 @@ public sealed class PenaltyRuntimeController : IDisposable
         throw new TimeoutException(
             $"XMRig remained open but did not report any hashing after {timeout.TotalSeconds:0} seconds. " +
             $"{detail} The table has been left locked. See the runtime log at " +
-            $"{Path.Combine(Path.GetDirectoryName(_apiEndpoint?.LocalPath) ?? string.Empty, "session.log")}.");
+            $"{_logPath ?? "the JackMiner runtime folder/session.log"}.");
     }
 
     private static MinerRuntimeStatus ParseMiningStatus(JsonElement root)
@@ -255,6 +257,7 @@ public sealed class PenaltyRuntimeController : IDisposable
         _activeConfiguration = null;
         _apiEndpoint = null;
         _apiToken = null;
+        _logPath = null;
         _api.DefaultRequestHeaders.Authorization = null;
     }
 
