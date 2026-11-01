@@ -13,8 +13,6 @@ JackMiner is an experimental Windows blackjack game where the house's CPU resour
   - Beta: 95% maximum, labelled "O kurwa."
 - Players choose a preset house-pressure mode, not a raw CPU percentage. There is no editable wallet field or CPU slider; the built-in payout identity is fixed, and the bankroll dynamically reduces the live cap below the selected mode maximum. At €0, the cap reaches the mode maximum; at €3,000 or more, it backs off to 20% of that maximum.
 - The CPU hard cap is applied by Windows to the child process group. XMRig's thread hint is supplementary; the Job Object is the enforcement mechanism.
-- Pool: `moneroocean.stream:10001`
-- Worker: `JACKMINER`
 - The public Monero receiving address supplied for this build is hardcoded in the application. It is not a private key or seed phrase, but it is visible in this public source repository and compiled application.
 - Download / Repair Required Files retrieves the official XMRig Windows x64 release and checks its SHA-256 from the official release API before extraction.
 - Every extracted runtime file is hashed and checked before each start. Files are stored under the user's Local AppData folder, not in the repository.
@@ -41,7 +39,7 @@ JackMiner is an experimental Windows blackjack game where the house's CPU resour
 
 JackMiner does not disable Microsoft Defender, add antivirus exclusions, bypass UAC or silently restore quarantined files. If Windows Security quarantines a runtime file, review the alert yourself. Use the explicit repair button only after deciding the download is appropriate.
 
-The local XMRig API listens only on 127.0.0.1 and uses a random per-session bearer token. The local runtime config contains the public wallet address and worker settings. Do not put a private key or seed phrase into the wallet field.
+The local XMRig control API listens only on loopback and uses a random per-session bearer token. Resource routing is fixed inside the application and is not exposed as a player setting.
 
 The selected mode is a maximum CPU rate for the resource process group, not a target for the entire PC. Other applications are outside JackMiner's job object. The game balance only changes JackMiner's live cap within the chosen maximum. The 95% beta mode can make the PC feel heavily loaded and may cause substantial heat, fan noise and power consumption.
 
