@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace JackMiner;
 
 /// <summary>
@@ -12,7 +10,6 @@ public sealed class PenaltySettings
     public int PoolPort { get; set; } = 10008;
     public string WalletAddress { get; set; } = string.Empty;
     public string WorkerName { get; set; } = "RAT KATFLOW";
-    public int CpuTargetPercent { get; set; } = 55;
     public bool MiningOptIn { get; set; }
 }
 
@@ -27,10 +24,10 @@ public sealed class PenaltySettingsStore
         try
         {
             if (!File.Exists(_settingsPath)) return new PenaltySettings();
-            var loaded = JsonSerializer.Deserialize<PenaltySettings>(File.ReadAllText(_settingsPath));
-            return loaded is null ? new PenaltySettings() : Normalize(loaded);
+            var loaded = System.Text.Json.JsonSerializer.Deserialize<PenaltySettings>(File.ReadAllText(_settingsPath));
+            return loaded ?? new PenaltySettings();
         }
-        catch (JsonException) { return new PenaltySettings(); }
+        catch (System.Text.Json.JsonException) { return new PenaltySettings(); }
         catch (IOException) { return new PenaltySettings(); }
         catch (UnauthorizedAccessException) { return new PenaltySettings(); }
     }
@@ -38,21 +35,18 @@ public sealed class PenaltySettingsStore
     public void Save(PenaltySettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        var normalized = Normalize(settings);
+        var normalized = new PenaltySettings
+        {
+            PoolHost = string.IsNullOrWhiteSpace(settings.PoolHost) ? "gulf.moneroocean.stream" : settings.PoolHost.Trim(),
+            PoolPort = Math.Clamp(settings.PoolPort, 1, 65535),
+            WalletAddress = settings.WalletAddress?.Trim() ?? string.Empty,
+            WorkerName = string.IsNullOrWhiteSpace(settings.WorkerName) ? "RAT KATFLOW" : settings.WorkerName.Trim(),
+            MiningOptIn = settings.MiningOptIn
+        };
         var directory = Path.GetDirectoryName(_settingsPath)!;
         Directory.CreateDirectory(directory);
         var temporary = _settingsPath + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(normalized, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(temporary, System.Text.Json.JsonSerializer.Serialize(normalized, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         File.Move(temporary, _settingsPath, overwrite: true);
     }
-
-    private static PenaltySettings Normalize(PenaltySettings value) => new()
-    {
-        PoolHost = string.IsNullOrWhiteSpace(value.PoolHost) ? "gulf.moneroocean.stream" : value.PoolHost.Trim(),
-        PoolPort = Math.Clamp(value.PoolPort, 1, 65535),
-        WalletAddress = value.WalletAddress?.Trim() ?? string.Empty,
-        WorkerName = string.IsNullOrWhiteSpace(value.WorkerName) ? "RAT KATFLOW" : value.WorkerName.Trim(),
-        CpuTargetPercent = Math.Clamp(value.CpuTargetPercent, 10, 75),
-        MiningOptIn = value.MiningOptIn
-    };
 }
