@@ -10,7 +10,7 @@ The `alphatest` branch contains the WPF blackjack table, first-run notice, setup
 - The first-run notice is an overlay in that same window. Acknowledgement is stored under the user's Local AppData folder.
 - Mining is **not** started by accepting the notice. It requires a separate opt-in checkbox, verified runtime files and a confirmation every time a session starts.
 - Download / Repair Required Files retrieves the official XMRig Windows x64 release and checks its SHA-256 from the official XMRig release API before extraction.
-- The installed executable is hashed and checked before each start. Files are stored under the user's Local AppData folder, not in the repository.
+- Every extracted runtime file is hashed and checked before each start. Files are stored under the user's Local AppData folder, not in the repository.
 - Check for Updates compares the installed version with the latest official release and asks before replacing files.
 - The runtime uses a loopback-only XMRig HTTP API with a random bearer token to adjust its CPU thread target as the blackjack bankroll changes.
 - The CPU target is a **thread-count hint**, not a precise CPU utilisation limiter. Actual usage varies by CPU topology, cache, algorithm and operating system scheduling.
