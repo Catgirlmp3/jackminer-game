@@ -10,6 +10,7 @@ public partial class MainWindow
     private readonly JackMinerEconomyStore _economyStore = new();
     private JackMinerEconomyState _economyState = new();
     private bool _tableUnlockedThisSession;
+    private bool _economyInitialized;
     private readonly DispatcherTimer _giveawayTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private Border? _giveawayPopup;
     private Button? _unlockTableButton;
@@ -24,6 +25,7 @@ public partial class MainWindow
     {
         _economyState = _economyStore.Load();
         _game.RestoreBalance(_economyState.Balance);
+        _economyInitialized = true;
 
         var sidePanel = FindVisualChild<Border>(this, b => b.Child is ScrollViewer);
         if (sidePanel?.Child is not ScrollViewer tableScroll || tableScroll.Content is not StackPanel tableContent)
