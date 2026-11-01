@@ -54,7 +54,7 @@ public partial class MainWindow
         var current = CurrentPenaltyTarget();
         ResourceTargetBar.Maximum = 100;
         ResourceTargetBar.Value = current;
-        ResourceTargetText.Text = $"{current}% LIVE CAP • {maximum}% MODE MAX";
+        ResourceTargetText.Text = IsResourceSessionActive ? $"{current}% LIVE CAP • {maximum}% MODE MAX" : $"{current}% PLANNED CAP • {maximum}% MODE MAX";
     }
 
     private void SavePenaltySettings()
