@@ -44,7 +44,7 @@ public partial class MainWindow
             }
 
             var answer = MessageBox.Show(
-                $"A JackMiner game update is available. Updating is highly recommended before playing.\\n\\nBuild: {update.Commit[..8]}\\n\\nThe update will download the official alpha package, verify its SHA-256, then ask Windows to authorize the local PowerShell installer. JackMiner will close while its files are replaced, verify every installed file, and reopen automatically. Your bankroll and collection are stored separately and will be preserved.\\n\\nInstall this update now?",
+                $"A JackMiner game update is available. Updating is highly recommended before playing.\n\nBuild: {update.Commit[..8]}\n\nInstall this update now?",
                 "JackMiner — Recommended Game Update", MessageBoxButton.YesNo, MessageBoxImage.Information);
             if (answer != MessageBoxResult.Yes)
             {
@@ -52,11 +52,13 @@ public partial class MainWindow
                 return;
             }
 
+            var explanation = MessageBox.Show(
+                "JackMiner will download the official alpha package over HTTPS and verify its SHA-256 before extracting anything. A local PowerShell installer will then request Windows elevation, wait for JackMiner to close, back up the current installation, replace the application files and verify every installed file hash. If verification fails, it restores the previous installation. Your bankroll and collection are stored separately and will be preserved. The game will reopen after a successful update.\n\nJackMiner already requests administrator rights at launch, so Windows may reuse that existing elevation rather than display a second UAC dialog. Continue?",
+                "JackMiner — Update Plan", MessageBoxButton.OKCancel, MessageBoxImage.Information);
+            if (explanation != MessageBoxResult.OK) return;
+
             RuntimeDetailText.Text = "Downloading and verifying the official JackMiner update...";
             await Services.JackMinerUpdater.LaunchVerifiedUpdateAsync(update);
-            MessageBox.Show(
-                "The update package has been downloaded and verified. Windows will now ask permission to run the local updater. JackMiner will close, install, verify the files and restart.",
-                "JackMiner — Windows Permission Required", MessageBoxButton.OK, MessageBoxImage.Information);
             Close();
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
@@ -66,7 +68,7 @@ public partial class MainWindow
         catch (Exception ex)
         {
             RuntimeDetailText.Text = "Startup update check failed; continuing with the installed version.";
-            MessageBox.Show($"JackMiner could not complete its startup update check. Your current installation has not been replaced.\\n\\n{ex.Message}",
+            MessageBox.Show($"JackMiner could not complete its startup update check. Your current installation has not been replaced.\n\n{ex.Message}",
                 "JackMiner — Update Check Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally { _startupUpdateCheckRunning = false; }
