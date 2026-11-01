@@ -118,6 +118,26 @@ public sealed class PenaltySetupService
         }
     }
 
+    public async Task<string> GetLatestVersionAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await Http.GetAsync(ReleaseApi, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+        return document.RootElement.GetProperty("version").GetString()
+            ?? throw new InvalidDataException("The official release service did not return a version.");
+    }
+
+    public async Task<string?> GetInstalledVersionAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (!File.Exists(_manifestPath)) return null;
+            var manifest = JsonSerializer.Deserialize<InstallManifest>(await File.ReadAllTextAsync(_manifestPath, cancellationToken));
+            return manifest?.Version;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
+
     public async Task<bool> VerifyInstalledAsync(CancellationToken cancellationToken = default)
     {
         try
