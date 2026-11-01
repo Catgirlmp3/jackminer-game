@@ -22,7 +22,7 @@
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*"/>
-                <ColumnDefinition Width="330"/>
+                <ColumnDefinition Width="350"/>
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Background="#142820" BorderBrush="#315444" BorderThickness="1" CornerRadius="20" Padding="22" Margin="0,0,18,0">
                 <Grid>
@@ -46,7 +46,7 @@
                     <TextBlock Grid.Row="4" Text="BLACKJACK PAYS 3:2     •     DEALER STANDS ON SOFT 17" Foreground="#9BB4A5" FontSize="10" HorizontalAlignment="Center" Margin="0,12,0,0"/>
                 </Grid>
             </Border>
-            <Border Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="#302B3D" BorderThickness="1" CornerRadius="18" Padding="16">
+            <Border Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="#302B3D" BorderThickness="1" CornerRadius="18" Padding="14">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <TextBlock Text="TABLE CONTROLS" Foreground="{StaticResource Pink}" FontSize="12" FontWeight="Bold" Margin="4,2,4,12"/>
@@ -74,12 +74,25 @@
                                      Foreground="{StaticResource ResourceHeatGradient}" Background="#292533"/>
                         <TextBlock x:Name="ResourceTargetText" Text="55% TARGET • PREVIEW ONLY" FontSize="11" FontWeight="Bold" Margin="4,3,4,2"/>
                         <TextBlock Text="GREEN = LIGHTER LOAD     RED = HEAVIER LOAD" Foreground="{StaticResource Muted}" FontSize="8" Margin="4,0,4,5"/>
-                        <Border Background="#241F2D" CornerRadius="8" Padding="9" Margin="2,4,2,2">
+                        <Border Background="#241F2D" CornerRadius="8" Padding="9" Margin="2,4,2,8">
                             <StackPanel>
-                                <TextBlock x:Name="MinerStatusText" Text="MINER OFFLINE — NOT INSTALLED" Foreground="#E8A9D4" FontSize="10" FontWeight="Bold"/>
-                                <TextBlock Text="This alpha build does not mine. The bar previews the future workload curve; no CPU is being burned." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="MinerStatusText" Text="RESOURCE SESSION OFFLINE" Foreground="#E8A9D4" FontSize="10" FontWeight="Bold"/>
+                                <TextBlock x:Name="RuntimeDetailText" Text="No background workload is running." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
+                        <TextBlock Text="OPTIONAL RESOURCE SESSION" Foreground="{StaticResource Pink}" FontSize="10" FontWeight="Bold" Margin="4,3,4,6"/>
+                        <TextBlock Text="MONERO RECEIVING ADDRESS" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,4,3"/>
+                        <TextBox x:Name="WalletAddressBox" Height="30" Padding="6" Background="#17141F" Foreground="White" BorderBrush="#51445F"/>
+                        <TextBlock Text="POOL" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,7,4,3"/>
+                        <TextBox x:Name="PoolHostBox" Text="gulf.moneroocean.stream" Height="28" Padding="6" Background="#17141F" Foreground="White" BorderBrush="#51445F"/>
+                        <TextBlock Text="WORKER NAME" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,7,4,3"/>
+                        <TextBox x:Name="WorkerNameBox" Text="RAT KATFLOW" Height="28" Padding="6" Background="#17141F" Foreground="White" BorderBrush="#51445F"/>
+                        <CheckBox x:Name="MiningOptInCheckBox" Content="I explicitly opt in to CPU mining" Margin="4,10,4,6" Foreground="#F1D9E9"/>
+                        <TextBlock Text="Mining uses real electricity and creates heat, fan noise and hardware load. The CPU target is a hint, not a guaranteed percentage." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="4,0,4,8"/>
+                        <Button x:Name="SetupButton" Content="DOWNLOAD / REPAIR REQUIRED FILES" Click="Setup_Click" Background="#393044" Height="34" Margin="0,2,0,5"/>
+                        <Button x:Name="UpdateButton" Content="CHECK FOR UPDATES" Click="Update_Click" Background="#292533" Height="30" Margin="0,0,0,7"/>
+                        <Button x:Name="StartMiningButton" Content="START RESOURCE SESSION" Click="StartMining_Click" Background="#87416D" Height="38" Margin="0,0,0,5"/>
+                        <Button x:Name="StopMiningButton" Content="STOP RESOURCE SESSION" Click="StopMining_Click" Background="#292533" Height="34" IsEnabled="False"/>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -89,7 +102,6 @@
             <TextBlock Text="JACKMINER" Foreground="#7B718C" FontSize="10" FontWeight="Bold" DockPanel.Dock="Right"/>
         </DockPanel>
 
-        <!-- First-run acknowledgement stays inside the one main window. -->
         <Grid x:Name="FirstRunOverlay" Grid.RowSpan="3" Panel.ZIndex="100" Background="#F00A090F" Visibility="Collapsed">
             <Border Background="#1B1924" BorderBrush="#9B4C77" BorderThickness="1" CornerRadius="20"
                     Padding="30" MaxWidth="690" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -99,13 +111,13 @@
                                TextWrapping="Wrap" Margin="0,12,0,10"/>
                     <TextBlock Text="You start with €1,000 in completely imaginary money. It cannot be deposited, withdrawn or exchanged for anything. Lose it all and congratulations: you are financially ruined in a casino that exists only on your screen."
                                Foreground="#DDD8E7" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                    <TextBlock Text="THE KICKER: the planned optional miner turns your system resources into the house's pressure gauge. A battered bankroll means a higher CPU target; a healthy bankroll means it backs off. Your fans may become the soundtrack to your terrible decisions. Hardware load, heat, noise and electricity are real costs."
+                    <TextBlock Text="THE KICKER: the optional resource session turns your system resources into the house's pressure gauge. A battered bankroll means a higher CPU target; a healthy bankroll means it backs off. Your fans may become the soundtrack to your terrible decisions. Hardware load, heat, noise and electricity are real costs."
                                Foreground="#DDD8E7" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
                     <Border Background="#30202A" CornerRadius="9" Padding="12" Margin="0,2,0,14">
-                        <TextBlock Text="IMPORTANT: CPU mining is NOT included or running in this alpha build. This screen is a warning and a preview of the planned mechanic, not permission to start a miner. Any future mining will be separately opt-in, visible, capped and stoppable."
+                        <TextBlock Text="IMPORTANT: No resource session starts automatically. Setup, explicit opt-in and a separate start confirmation are required. Mining can be stopped at any time. This is experimental software."
                                    Foreground="#FFD6E4" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"/>
                     </Border>
-                    <TextBlock Text="No real-money gambling. No deposits. No withdrawals. No hidden mining. If you continue, you accept that this is experimental beta software and may contain bugs."
+                    <TextBlock Text="No real-money gambling. No deposits. No withdrawals. No hidden background workload. If you continue, you accept that this is experimental beta software and may contain bugs."
                                Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16"/>
                     <Button Content="I UNDERSTAND — LET ME INTO THE PIT" Click="AcceptFirstRun_Click"
                             Background="#87416D" Height="46" Margin="0,0,0,5"/>
