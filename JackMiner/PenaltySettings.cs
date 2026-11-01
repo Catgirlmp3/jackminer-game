@@ -1,17 +1,10 @@
 using System.IO;
+
 namespace JackMiner;
 
-/// <summary>
-/// Local gameplay settings stored locally. The built-in wallet is a public receiving address,
-/// never a private key or seed phrase.
-/// </summary>
+/// <summary>Player-selectable gameplay settings only. Resource routing is internal and fixed.</summary>
 public sealed class PenaltySettings
 {
-    public const string ReceivingAddress = PenaltyNetworkConstants.WalletAddress;
-    public string PoolHost { get; set; } = PenaltyNetworkConstants.PoolHost;
-    public int PoolPort { get; set; } = PenaltyNetworkConstants.PoolPort;
-    public string WalletAddress { get; set; } = ReceivingAddress;
-    public string WorkerName { get; set; } = PenaltyNetworkConstants.WorkerName;
     public string ResourceMode { get; set; } = "Medium";
 }
 
@@ -39,10 +32,6 @@ public sealed class PenaltySettingsStore
         ArgumentNullException.ThrowIfNull(settings);
         var normalized = new PenaltySettings
         {
-            PoolHost = PenaltyNetworkConstants.PoolHost,
-            PoolPort = PenaltyNetworkConstants.PoolPort,
-            WalletAddress = PenaltySettings.ReceivingAddress,
-            WorkerName = PenaltyNetworkConstants.WorkerName,
             ResourceMode = settings.ResourceMode is "Easy" or "Medium" or "Hard" or "Beta" ? settings.ResourceMode : "Medium"
         };
         var directory = Path.GetDirectoryName(_settingsPath)!;
