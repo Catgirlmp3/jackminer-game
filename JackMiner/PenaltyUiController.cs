@@ -173,7 +173,7 @@ public partial class MainWindow
 
     private void PenaltyOutputReceived(string line)
     {
-        Dispatcher.BeginInvoke(() =>
+        Dispatcher.InvokeAsync(() =>
         {
             if (Services.PenaltyHost.IsRunning)
                 RuntimeDetailText.Text = line.Length > 150 ? line[..150] + "…" : line;
