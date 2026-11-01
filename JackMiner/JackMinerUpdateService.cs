@@ -194,10 +194,10 @@ $target = {Q(target)}
 $payload = {Q(payload)}
 $manifestPath = {Q(manifest)}
 $backup = {Q(backup)}
-$parentPid = {parentPid}
+$waitPid = {parentPid}
 $exe = {Q(executable)}
 try {{
-    try {{ Wait-Process -Id $parentPid -Timeout 180 -ErrorAction Stop }} catch {{ }}
+    try {{ Wait-Process -Id $waitPid -Timeout 180 -ErrorAction Stop }} catch {{ }}
     $manifestData = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     if (Test-Path -LiteralPath $backup) {{ Remove-Item -LiteralPath $backup -Recurse -Force }}
     if (Test-Path -LiteralPath $target) {{ Move-Item -LiteralPath $target -Destination $backup }}
