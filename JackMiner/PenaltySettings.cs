@@ -2,7 +2,7 @@ using System.IO;
 namespace JackMiner;
 
 /// <summary>
-/// User-editable settings stored locally. The wallet is a public receiving address,
+/// Local gameplay settings stored locally. The built-in wallet is a public receiving address,
 /// never a private key or seed phrase.
 /// </summary>
 public sealed class PenaltySettings
