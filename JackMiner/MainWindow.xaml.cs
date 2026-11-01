@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -10,13 +11,36 @@ public partial class MainWindow : Window
     private readonly GameEngine _game = new();
     private decimal _selectedWager;
     private readonly decimal[] _chips = [5, 10, 25, 50, 75, 100, 200];
+    private readonly string _firstRunMarker = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "JackMiner", "first-run-acknowledged-v2.txt");
 
     public MainWindow()
     {
         InitializeComponent();
+        FirstRunOverlay.Visibility = File.Exists(_firstRunMarker) ? Visibility.Collapsed : Visibility.Visible;
         BuildChips();
         RefreshTable();
     }
+
+    private void AcceptFirstRun_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_firstRunMarker)!);
+            File.WriteAllText(_firstRunMarker, $"Acknowledged {DateTimeOffset.UtcNow:O}");
+            FirstRunOverlay.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"JackMiner could not save the first-run acknowledgement. The warning will appear again next launch.\n\n{ex.Message}",
+                "JackMiner — Preference Not Saved", MessageBoxButton.OK, MessageBoxImage.Warning);
+            FirstRunOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void DeclineFirstRun_Click(object sender, RoutedEventArgs e) => Close();
 
     private void BuildChips()
     {
@@ -47,6 +71,7 @@ public partial class MainWindow : Window
 
     private void Deal_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanUseTable) return;
         if (_selectedWager <= 0)
         {
             TableStatus.Text = "Choose at least one chip first.";
@@ -61,13 +86,14 @@ public partial class MainWindow : Window
         RefreshTable();
     }
 
-    private void Hit_Click(object sender, RoutedEventArgs e) { _game.Hit(); RefreshTable(); }
-    private void Stand_Click(object sender, RoutedEventArgs e) { _game.Stand(); RefreshTable(); }
-    private void Double_Click(object sender, RoutedEventArgs e) { _game.DoubleDown(); RefreshTable(); }
-    private void Split_Click(object sender, RoutedEventArgs e) { _game.Split(); RefreshTable(); }
+    private void Hit_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Hit(); RefreshTable(); }
+    private void Stand_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Stand(); RefreshTable(); }
+    private void Double_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.DoubleDown(); RefreshTable(); }
+    private void Split_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Split(); RefreshTable(); }
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
+        if (!IsResourceSessionActive) return;
         if (_game.RoundInProgress)
         {
             TableStatus.Text = "Finish the current round before clearing your bet.";
@@ -81,10 +107,14 @@ public partial class MainWindow : Window
     {
         BalanceText.Text = _game.Balance.ToString("C2", CultureInfo.GetCultureInfo("en-IE"));
         WagerText.Text = _selectedWager.ToString("C0", CultureInfo.GetCultureInfo("en-IE"));
-        TableStatus.Text = _game.Status;
+        TableStatus.Text = CanUseTable ? _game.Status : IsResourceSessionActive ? "The resource session is active. Unlock the table to begin." : "The table is closed. Start a confirmed resource session to play.";
         ResultText.Text = _game.RoundInProgress ? "Round in progress." :
             _game.LastNet > 0 ? $"You won {_game.LastNet:C2} this round." :
             _game.LastNet < 0 ? $"You lost {Math.Abs(_game.LastNet):C2} this round." : "Ready for the next hand.";
+
+        var targetLoad = CurrentPenaltyTarget();
+        UpdatePenaltyTarget(targetLoad);
+        UpdateResourceMeter();
 
         DealerCards.Children.Clear();
         for (var i = 0; i < _game.Dealer.Cards.Count; i++)
@@ -123,13 +153,20 @@ public partial class MainWindow : Window
             }
         }
 
-        HitButton.IsEnabled = _game.CanHit;
-        StandButton.IsEnabled = _game.CanStand;
-        DoubleButton.IsEnabled = _game.CanDouble;
-        SplitButton.IsEnabled = _game.CanSplit;
-        DealButton.IsEnabled = !_game.RoundInProgress && _selectedWager > 0 && _selectedWager <= _game.Balance;
+        var tableOpen = CanUseTable;
+        HitButton.IsEnabled = tableOpen && _game.CanHit;
+        StandButton.IsEnabled = tableOpen && _game.CanStand;
+        DoubleButton.IsEnabled = tableOpen && _game.CanDouble;
+        SplitButton.IsEnabled = tableOpen && _game.CanSplit;
+        DealButton.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager > 0 && _selectedWager <= _game.Balance;
         foreach (Button chip in ChipPanel.Children)
-            chip.IsEnabled = !_game.RoundInProgress && _selectedWager < 300 && _selectedWager < _game.Balance;
+            chip.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager < 300 && _selectedWager < _game.Balance;
+
+        if (_economyInitialized)
+        {
+            PersistEconomy();
+            RefreshShop();
+        }
     }
 
     private static Border CreateCard(string face, bool isRed, bool hidden)
