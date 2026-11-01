@@ -1,57 +1,286 @@
-# JackMiner
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
 
-JackMiner is an experimental Windows blackjack game where the house's CPU resource pressure is a core gameplay mechanic. The blackjack bankroll is fictional; CPU load, heat, fan noise and electricity use are real.
+namespace JackMiner;
 
-## Alpha-test branch
+public partial class MainWindow
+{
+    private readonly JackMinerEconomyStore _economyStore = new();
+    private JackMinerEconomyState _economyState = new();
+    private bool _tableUnlockedThisSession;
+    private bool _economyInitialized;
+    private readonly DispatcherTimer _giveawayTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private Border? _giveawayPopup;
+    private Button? _unlockTableButton;
+    private StackPanel? _shopPanel;
+    private StackPanel? _inventoryPanel;
+    private TextBlock? _giveawayCountdown;
+    private Button? _claimGiveawayButton;
+    private Border? _tableLockOverlay;
+    private CheckBox? _autoUpdateCheckBox;
 
-- The felt is visibly locked at launch. A confirmed resource session is required, then the player must separately accept the eerie table-unlock prompt. Stopping the session locks the table again.
-- Nothing starts silently: install the verified runtime, choose a resource mode, then confirm before each session.
-- Four modes set a Windows Job Object **hard CPU-rate ceiling** for the complete resource process group:
-  - Easy: 20% maximum
-  - Medium: 50% maximum
-  - Hard: 80% maximum
-  - Beta: 95% maximum, labelled "O kurwa."
-- Players choose a preset house-pressure mode, not a raw CPU percentage. There is no editable wallet field or CPU slider; the built-in payout identity is fixed, and the bankroll dynamically reduces the live cap below the selected mode maximum. At €0, the cap reaches the mode maximum; at €3,000 or more, it backs off to 20% of that maximum.
-- The CPU hard cap is applied by Windows to the child process group. XMRig's thread hint is supplementary; the Job Object is the enforcement mechanism.
-- The public Monero receiving address supplied for this build is hardcoded in the application. It is not a private key or seed phrase, but it is visible in this public source repository and compiled application.
-- Download / Repair Required Files retrieves the official XMRig Windows x64 release and checks its SHA-256 from the official release API before extraction.
-- Every extracted runtime file is hashed and checked before each start. Files are stored under the user's Local AppData folder, not in the repository.
-- Check for Updates compares the installed version with the latest official release and asks before replacing files.
-- On startup, JackMiner checks the rolling `alpha-latest` GitHub release by default. If a newer game build is available, it recommends updating and asks first; the player can disable automatic startup checks in SETTINGS. Declining postpones the update and leaves the current build untouched.
-- The game updater downloads the alpha package and checksum over HTTPS, validates the release source and package SHA-256, safely extracts into a staging folder, then launches a local PowerShell installer with Windows elevation requested. The installer waits for JackMiner to close, backs up the current application folder, replaces it, verifies every installed file hash and restores the previous folder if installation fails. Bankroll and collection saves remain under Local AppData and are not overwritten.
-- The PowerShell helper is generated locally by the installed application; no remote PowerShell script is downloaded or executed. Because JackMiner itself currently requests administrator privileges, Windows may not display a second UAC dialog for the child updater after the initial application elevation.
-- The runtime uses a loopback-only XMRig HTTP API with a random bearer token to update the supplementary thread hint as the bankroll changes.
-- MSR and Large Pages optimisations remain disabled.
-- The session runs as a child process supervised by `PenaltyProcessHost` using a Windows Job Object. The child has its own PID in Task Manager; closing JackMiner terminates the job and its child processes.
-- No Windows service, detached console, tray helper, extra launcher process or Tor integration is used.
+    private bool CanUseTable => IsResourceSessionActive && _tableUnlockedThisSession;
 
-## Blackjack rules
+    private void InitializeCasinoTabs()
+    {
+        _economyState = _economyStore.Load();
+        _game.RestoreBalance(_economyState.Balance);
+        _economyInitialized = true;
 
-- €1,000 virtual starting bankroll, persisted locally between launches.
-- The Oddities Shop sells permanent collectibles (minimum €100) such as an industrial tub of mayo, suspicious pickles, a hyper-specific F-16 configuration, a 2003 Toyota Corolla and jarred armpit hair. They have no gameplay effect yet; they are reserved for a later collection feature.
-- A manually claimed €25 House Drop becomes available every 15 minutes while the game is open. Drops do not stack, and the next claim time is saved locally.
-- Chip values: €5, €10, €25, €50, €75, €100 and €200.
-- Maximum opening wager: €300.
-- Six-deck shoe using a cryptographically secure random shuffle.
-- Natural blackjack pays 3:2.
-- Dealer stands on soft 17.
-- Hit, stand, double down and one split per round.
-- No insurance, deposits, withdrawals or cash value.
+        var sidePanel = FindVisualChild<Border>(this, b => b.Child is ScrollViewer);
+        if (sidePanel?.Child is not ScrollViewer tableScroll || tableScroll.Content is not StackPanel tableContent)
+            return;
 
-## Security and resource use
+        tableScroll.Content = null;
+        var feltBorder = FindVisualChild<Border>(this, b => b.Child is Grid && Grid.GetColumn(b) == 0);
+        if (feltBorder?.Child is Grid feltGrid)
+        {
+            var lockContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Width = 320 };
+            lockContent.Children.Add(new TextBlock { Text = "TABLE LOCKED", Foreground = Brushes.White, FontSize = 24, FontWeight = FontWeights.Black, HorizontalAlignment = HorizontalAlignment.Center });
+            lockContent.Children.Add(new TextBlock { Text = "The house is not ready for you. Start a resource session, then unlock the table from the TABLE tab.", Foreground = new SolidColorBrush(Color.FromRgb(224, 210, 230)), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 8, 0, 0) });
+            _tableLockOverlay = new Border { Background = new SolidColorBrush(Color.FromArgb(225, 8, 10, 13)), CornerRadius = new CornerRadius(16), Padding = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Child = lockContent };
+            Grid.SetRowSpan(_tableLockOverlay, 5);
+            Panel.SetZIndex(_tableLockOverlay, 100);
+            feltGrid.Children.Add(_tableLockOverlay);
+        }
+        var tabs = new TabControl { Background = new SolidColorBrush(Color.FromRgb(28, 24, 37)), BorderThickness = new Thickness(0) };
+        tabs.Items.Add(new TabItem { Header = "TABLE", Content = tableScroll });
 
-JackMiner does not disable Microsoft Defender, add antivirus exclusions, bypass UAC or silently restore quarantined files. If Windows Security quarantines a runtime file, review the alert yourself. Use the explicit repair button only after deciding the download is appropriate.
+        _unlockTableButton = new Button
+        {
+            Content = "UNLOCK TABLE",
+            Height = 38,
+            Margin = new Thickness(0, 0, 0, 10),
+            Background = new SolidColorBrush(Color.FromRgb(135, 65, 109)),
+            Foreground = Brushes.White,
+            FontWeight = FontWeights.Bold,
+            IsEnabled = false
+        };
+        _unlockTableButton.Click += UnlockTable_Click;
+        tableContent.Children.Insert(0, _unlockTableButton);
 
-The local XMRig control API listens only on loopback and uses a random per-session bearer token. Resource routing is fixed inside the application and is not exposed as a player setting.
+        _shopPanel = new StackPanel { Margin = new Thickness(8) };
+        _shopPanel.Children.Add(new TextBlock { Text = "THE OBJECTS DEPARTMENT", Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 4, 0, 4) });
+        _shopPanel.Children.Add(new TextBlock { Text = "Acquire things of questionable significance. Every purchase is permanent; their purpose will be revealed later.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+        tabs.Items.Add(new TabItem { Header = "ODDITIES SHOP", Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = _shopPanel } });
 
-The selected mode is a maximum CPU rate for the resource process group, not a target for the entire PC. Other applications are outside JackMiner's job object. The game balance only changes JackMiner's live cap within the chosen maximum. The 95% beta mode can make the PC feel heavily loaded and may cause substantial heat, fan noise and power consumption.
+        var rewards = new StackPanel { Margin = new Thickness(12) };
+        rewards.Children.Add(new TextBlock { Text = "THE HOUSE REMEMBERS", Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.Bold });
+        _giveawayCountdown = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(194, 178, 211)), Margin = new Thickness(0, 8, 0, 12), TextWrapping = TextWrapping.Wrap };
+        rewards.Children.Add(_giveawayCountdown);
+        _claimGiveawayButton = new Button { Content = "CLAIM HOUSE DROP  •  €25", Height = 42, Background = new SolidColorBrush(Color.FromRgb(120, 71, 166)), Foreground = Brushes.White, IsEnabled = false };
+        _claimGiveawayButton.Click += ClaimGiveaway_Click;
+        rewards.Children.Add(_claimGiveawayButton);
+        rewards.Children.Add(new TextBlock { Text = "A drop becomes available every 15 minutes. You must claim it yourself; missed drops do not stack.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
+        tabs.Items.Add(new TabItem { Header = "HOUSE DROPS", Content = rewards });
 
-## Build
+        var settingsPanel = new StackPanel { Margin = new Thickness(12) };
+        settingsPanel.Children.Add(new TextBlock { Text = "JACKMINER PREFERENCES", Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.Bold });
+        settingsPanel.Children.Add(new TextBlock { Text = "Keep the game current without having to remember to check manually.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 14) });
+        _autoUpdateCheckBox = new CheckBox
+        {
+            Content = "CHECK FOR GAME UPDATES ON STARTUP (RECOMMENDED)",
+            IsChecked = _penaltySettings.AutoUpdateOnStartup,
+            Foreground = Brushes.White,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 4, 0, 8)
+        };
+        _autoUpdateCheckBox.Checked += AutoUpdatePreference_Changed;
+        _autoUpdateCheckBox.Unchecked += AutoUpdatePreference_Changed;
+        settingsPanel.Children.Add(_autoUpdateCheckBox);
+        settingsPanel.Children.Add(new TextBlock { Text = "When an update is available, JackMiner explains what will happen and asks before downloading or replacing files. Windows elevation is requested for the local PowerShell installer. You can turn this check off at any time.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, FontSize = 11 });
+        tabs.Items.Add(new TabItem { Header = "SETTINGS", Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = settingsPanel } });
 
-- Visual Studio 2022 or the .NET 8 SDK.
-- Windows desktop development / WPF workload.
-- Open `JackMiner/JackMiner.csproj` and build for Windows.
+        sidePanel.Child = tabs;
+        BuildShop();
+        BuildGiveawayPopup();
+        _giveawayTimer.Tick += (_, _) => RefreshGiveawayUi();
+        _giveawayTimer.Start();
+        RefreshInventory();
+        RefreshGiveawayUi();
+        PersistEconomy();
+    }
 
-## Current limitations
+    private void AutoUpdatePreference_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_autoUpdateCheckBox is null) return;
+        _penaltySettings.AutoUpdateOnStartup = _autoUpdateCheckBox.IsChecked == true;
+        Services.PenaltySettings.Save(_penaltySettings);
+    }
 
-This is an experimental alpha and still needs successful Windows CI and hands-on testing of the Job Object CPU hard cap, pool connectivity, payout worker, mode switching and long-session stability. MSR and Large Pages controls, pool diagnostics, session hashrate / accepted-share display, game history, audio, animations and production packaging are not complete. Collectibles are currently inventory-only and have no gameplay effects.
+    private static T? FindVisualChild<T>(DependencyObject parent, Func<T, bool> predicate) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match && predicate(match)) return match;
+            var nested = FindVisualChild(child, predicate);
+            if (nested is not null) return nested;
+        }
+        return null;
+    }
+
+    private void UnlockTable_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsResourceSessionActive) return;
+        var answer = MessageBox.Show(
+            "The house has noticed you. Your machine will work while you play; the numbers on the felt are fiction, but the heat in your room is not. Step through, and the table will remember.",
+            "JackMiner — The Table Is Listening",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes) return;
+        _tableUnlockedThisSession = true;
+        UpdateTableLockOverlay();
+        _unlockTableButton!.Content = "TABLE UNLOCKED — THE HOUSE IS WATCHING";
+        _unlockTableButton.IsEnabled = false;
+        RefreshTable();
+    }
+
+    private void BuildShop()
+    {
+        if (_shopPanel is null) return;
+        foreach (var item in CollectibleCatalog.Items)
+        {
+            var owned = _economyState.OwnedCollectibles.Contains(item.Id);
+            var card = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(36, 31, 45)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(66, 54, 80)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(10),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            var content = new StackPanel();
+            content.Children.Add(new TextBlock { Text = item.Name, Foreground = Brushes.White, FontWeight = FontWeights.Bold, FontSize = 13, TextWrapping = TextWrapping.Wrap });
+            content.Children.Add(new TextBlock { Text = $"{item.Rarity}  •  {item.Price:C0}", Foreground = new SolidColorBrush(Color.FromRgb(232, 169, 212)), Margin = new Thickness(0, 3, 0, 3) });
+            content.Children.Add(new TextBlock { Text = item.Description, Foreground = new SolidColorBrush(Color.FromRgb(184, 176, 197)), TextWrapping = TextWrapping.Wrap, FontSize = 11, Margin = new Thickness(0, 0, 0, 7) });
+            var buy = new Button { Content = owned ? "COLLECTED" : "ACQUIRE", IsEnabled = !owned && _game.Balance >= item.Price, Tag = item.Id, Height = 30, Background = new SolidColorBrush(Color.FromRgb(74, 54, 91)), Foreground = Brushes.White };
+            buy.Click += BuyCollectible_Click;
+            content.Children.Add(buy);
+            card.Child = content;
+            _shopPanel.Children.Add(card);
+        }
+        _inventoryPanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        _shopPanel.Children.Add(new TextBlock { Text = "YOUR COLLECTION", Foreground = Brushes.White, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 6) });
+        _shopPanel.Children.Add(_inventoryPanel);
+    }
+
+    private void BuyCollectible_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string id }) return;
+        var item = CollectibleCatalog.Items.FirstOrDefault(x => x.Id == id);
+        if (item is null || _economyState.OwnedCollectibles.Contains(id) || !_game.TrySpend(item.Price)) return;
+        _economyState.OwnedCollectibles.Add(id);
+        PersistEconomy();
+        RefreshTable();
+        RefreshShop();
+    }
+
+    private void RefreshShop()
+    {
+        if (_shopPanel is null) return;
+        var selected = _shopPanel.Children.OfType<Border>().ToList();
+        for (var i = 0; i < selected.Count && i < CollectibleCatalog.Items.Count; i++)
+        {
+            if (selected[i].Child is not StackPanel panel || panel.Children.OfType<Button>().FirstOrDefault() is not { } button) continue;
+            var item = CollectibleCatalog.Items[i];
+            var owned = _economyState.OwnedCollectibles.Contains(item.Id);
+            button.Content = owned ? "COLLECTED" : "ACQUIRE";
+            button.IsEnabled = !owned && _game.Balance >= item.Price;
+        }
+        RefreshInventory();
+    }
+
+    private void RefreshInventory()
+    {
+        if (_inventoryPanel is null) return;
+        _inventoryPanel.Children.Clear();
+        var owned = CollectibleCatalog.Items.Where(x => _economyState.OwnedCollectibles.Contains(x.Id)).ToList();
+        if (owned.Count == 0)
+            _inventoryPanel.Children.Add(new TextBlock { Text = "Nothing collected. The shelves are waiting.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)) });
+        foreach (var item in owned)
+            _inventoryPanel.Children.Add(new TextBlock { Text = $"✦  {item.Name}", Foreground = new SolidColorBrush(Color.FromRgb(232, 169, 212)), Margin = new Thickness(0, 2, 0, 2), TextWrapping = TextWrapping.Wrap });
+    }
+
+    private void BuildGiveawayPopup()
+    {
+        if (Content is not Grid root) return;
+        var panel = new StackPanel { Width = 340 };
+        panel.Children.Add(new TextBlock { Text = "THE HOUSE HAS LEFT YOU SOMETHING.", Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "A small mercy. Do not ask why.", Foreground = new SolidColorBrush(Color.FromRgb(196, 182, 208)), Margin = new Thickness(0, 7, 0, 14) });
+        var claim = new Button { Content = "CLAIM €25", Height = 42, Background = new SolidColorBrush(Color.FromRgb(135, 65, 109)), Foreground = Brushes.White };
+        claim.Click += ClaimGiveaway_Click;
+        panel.Children.Add(claim);
+        _giveawayPopup = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(29, 24, 38)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(180, 92, 151)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(22),
+            Width = 390,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+            Child = panel
+        };
+        Grid.SetRowSpan(_giveawayPopup, 3);
+        Panel.SetZIndex(_giveawayPopup, 250);
+        root.Children.Add(_giveawayPopup);
+    }
+
+    private void ClaimGiveaway_Click(object sender, RoutedEventArgs e)
+    {
+        if (DateTimeOffset.UtcNow < _economyState.NextGiveawayUtc) return;
+        _game.AwardBonus(25m);
+        _economyState.NextGiveawayUtc = DateTimeOffset.UtcNow.AddMinutes(15);
+        if (_giveawayPopup is not null) _giveawayPopup.Visibility = Visibility.Collapsed;
+        PersistEconomy();
+        RefreshTable();
+        RefreshShop();
+        RefreshGiveawayUi();
+        MessageBox.Show("€25 added to your fictional bankroll. The house will call again in fifteen minutes.", "JackMiner — House Drop", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void RefreshGiveawayUi()
+    {
+        var remaining = _economyState.NextGiveawayUtc - DateTimeOffset.UtcNow;
+        var available = remaining <= TimeSpan.Zero;
+        if (_giveawayCountdown is not null)
+            _giveawayCountdown.Text = available ? "A house drop is waiting. Claim it before the house changes its mind." : $"Next house drop in {Math.Max(0, (int)remaining.TotalMinutes):00}:{Math.Max(0, remaining.Seconds):00}.";
+        if (_claimGiveawayButton is not null)
+        {
+            _claimGiveawayButton.IsEnabled = available;
+            _claimGiveawayButton.Content = available ? "CLAIM HOUSE DROP  •  €25" : "THE HOUSE IS COUNTING...";
+        }
+        if (available && _giveawayPopup is not null)
+            _giveawayPopup.Visibility = Visibility.Visible;
+    }
+
+    private void PersistEconomy()
+    {
+        _economyState.Balance = _game.Balance;
+        _economyStore.Save(_economyState);
+    }
+
+    private void UpdateTableLockOverlay()
+    {
+        if (_tableLockOverlay is not null)
+            _tableLockOverlay.Visibility = CanUseTable ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ResetTableUnlock()
+    {
+        _tableUnlockedThisSession = false;
+        if (_unlockTableButton is not null)
+        {
+            _unlockTableButton.Content = "UNLOCK TABLE";
+            _unlockTableButton.IsEnabled = IsResourceSessionActive;
+        }
+        UpdateTableLockOverlay();
+        RefreshTable();
+    }
+}
