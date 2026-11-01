@@ -92,7 +92,7 @@ public sealed class GameEngine
 
     public void AwardBonus(decimal amount)
     {
-        if (amount <= 0 || RoundInProgress) return;
+        if (amount <= 0) return;
         Balance = Math.Min(1_000_000_000m, Balance + amount);
     }
 
