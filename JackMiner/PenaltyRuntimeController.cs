@@ -202,8 +202,9 @@ public sealed class PenaltyRuntimeController : IDisposable
 
     private static long ReadInt64(JsonElement element, string property)
     {
-        return element.TryGetProperty(property, out var value) && value.TryGetInt64()
-            ? value.GetInt64()
+        return element.TryGetProperty(property, out var value) &&
+               value.TryGetInt64(out var number)
+            ? number
             : 0;
     }
 
