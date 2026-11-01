@@ -90,7 +90,7 @@
                             <ComboBoxItem Content="HARD — 80% MAX" Tag="Hard"/>
                             <ComboBoxItem Content="O KURWA. — 95% MAX (BETA)" Tag="Beta"/>
                         </ComboBox>
-                        <TextBlock Text="PAYOUT: MONEROOCEAN • WORKER: JACKMINER" Foreground="{StaticResource Muted}" FontSize="8" TextWrapping="Wrap" Margin="4,3,4,7"/>
+
                         <TextBlock Text="The selected mode sets a Windows-enforced maximum CPU rate for the resource process. Your bankroll dynamically lowers the live cap below that maximum. Heat, fan noise, electricity use and hardware load are real." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="4,0,4,8"/>
                         <Button x:Name="SetupButton" Content="DOWNLOAD / REPAIR REQUIRED FILES" Click="Setup_Click" Background="#393044" Height="34" Margin="0,2,0,5"/>
                         <Button x:Name="UpdateButton" Content="CHECK FOR UPDATES" Click="Update_Click" Background="#292533" Height="30" Margin="0,0,0,7"/>
