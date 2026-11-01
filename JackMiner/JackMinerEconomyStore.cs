@@ -16,13 +16,17 @@ public sealed class JackMinerEconomyStore
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "JackMiner", "economy.json");
 
+    public string? LastLoadWarning { get; private set; }
+
     public JackMinerEconomyState Load()
     {
+        LastLoadWarning = null;
         try
         {
             if (!File.Exists(_path)) return new JackMinerEconomyState();
             var state = JsonSerializer.Deserialize<JackMinerEconomyState>(File.ReadAllText(_path));
-            if (state is null) return new JackMinerEconomyState();
+            if (state is null)
+                return RecoverFromInvalidSave("The save file contained no usable data.");
             state.Balance = Math.Clamp(state.Balance, 0m, 1_000_000_000m);
             state.OwnedCollectibles ??= [];
             state.NextGiveawayUtc = state.NextGiveawayUtc == default
@@ -31,8 +35,33 @@ public sealed class JackMinerEconomyStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            return new JackMinerEconomyState();
+            return RecoverFromInvalidSave($"The save file could not be read: {ex.Message}");
         }
+    }
+
+    private JackMinerEconomyState RecoverFromInvalidSave(string reason)
+    {
+        string? backupPath = null;
+        string? backupError = null;
+        try
+        {
+            if (File.Exists(_path))
+            {
+                backupPath = _path + $".corrupt-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss-fff}.bak";
+                File.Copy(_path, backupPath, overwrite: false);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            backupError = ex.Message;
+        }
+
+        LastLoadWarning = backupPath is not null
+            ? $"{reason} The original file was preserved at: {backupPath}"
+            : backupError is not null
+                ? $"{reason} JackMiner could not create a backup: {backupError}"
+                : reason;
+        return new JackMinerEconomyState();
     }
 
     public void Save(JackMinerEconomyState state)
