@@ -1,7 +1,7 @@
 <Window x:Class="JackMiner.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="JackMiner — Blackjack" Width="1180" Height="760" MinWidth="980" MinHeight="650"
+        Title="JackMiner — Blackjack" Width="1240" Height="820" MinWidth="1080" MinHeight="720"
         WindowStartupLocation="CenterScreen" Background="{StaticResource Bg}" Foreground="#F7F3FF">
     <Grid Margin="22">
         <Grid.RowDefinitions>
@@ -12,7 +12,7 @@
         <DockPanel Grid.Row="0" Margin="0,0,0,18">
             <StackPanel DockPanel.Dock="Left">
                 <TextBlock Text="JACKMINER" FontSize="25" FontWeight="Bold" Foreground="{StaticResource Pink}" />
-                <TextBlock Text="BLACKJACK CLUB  •  BETA BUILD" FontSize="10" Foreground="{StaticResource Muted}" Margin="2,2,0,0"/>
+                <TextBlock Text="BLACKJACK CLUB  •  ALPHA TEST" FontSize="10" Foreground="{StaticResource Muted}" Margin="2,2,0,0"/>
             </StackPanel>
             <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
                 <TextBlock Text="VIRTUAL BALANCE" FontSize="10" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/>
@@ -22,7 +22,7 @@
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*"/>
-                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="330"/>
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Background="#142820" BorderBrush="#315444" BorderThickness="1" CornerRadius="20" Padding="22" Margin="0,0,18,0">
                 <Grid>
@@ -47,31 +47,71 @@
                 </Grid>
             </Border>
             <Border Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="#302B3D" BorderThickness="1" CornerRadius="18" Padding="16">
-                <StackPanel>
-                    <TextBlock Text="TABLE CONTROLS" Foreground="{StaticResource Pink}" FontSize="12" FontWeight="Bold" Margin="4,2,4,12"/>
-                    <TextBlock Text="SELECT YOUR BET" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
-                    <WrapPanel x:Name="ChipPanel"/>
-                    <TextBlock Text="WAGER" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,14,0,2"/>
-                    <TextBlock x:Name="WagerText" Text="€0" FontSize="25" FontWeight="Bold" Margin="4,0,0,8"/>
-                    <Button x:Name="DealButton" Content="DEAL" Background="#7847A6" Click="Deal_Click" Height="44" Margin="0,4,0,12"/>
-                    <Separator Background="#383144" Margin="0,4,0,12"/>
-                    <TextBlock Text="YOUR MOVE" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
-                    <UniformGrid Columns="2">
-                        <Button x:Name="HitButton" Content="HIT" Click="Hit_Click"/>
-                        <Button x:Name="StandButton" Content="STAND" Click="Stand_Click"/>
-                        <Button x:Name="DoubleButton" Content="DOUBLE" Click="Double_Click"/>
-                        <Button x:Name="SplitButton" Content="SPLIT" Click="Split_Click"/>
-                    </UniformGrid>
-                    <Separator Background="#383144" Margin="0,14,0,12"/>
-                    <TextBlock Text="ROUND RESULT" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
-                    <TextBlock x:Name="ResultText" Text="Ready when you are." TextWrapping="Wrap" FontSize="13" Margin="4,2,4,10"/>
-                    <Button Content="CLEAR BET" Click="Reset_Click" Background="#292533"/>
-                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="TABLE CONTROLS" Foreground="{StaticResource Pink}" FontSize="12" FontWeight="Bold" Margin="4,2,4,12"/>
+                        <TextBlock Text="SELECT YOUR BET" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
+                        <WrapPanel x:Name="ChipPanel"/>
+                        <TextBlock Text="WAGER" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,14,0,2"/>
+                        <TextBlock x:Name="WagerText" Text="€0" FontSize="25" FontWeight="Bold" Margin="4,0,0,8"/>
+                        <Button x:Name="DealButton" Content="DEAL" Background="#7847A6" Click="Deal_Click" Height="44" Margin="0,4,0,12"/>
+                        <Separator Background="#383144" Margin="0,4,0,12"/>
+                        <TextBlock Text="YOUR MOVE" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
+                        <UniformGrid Columns="2">
+                            <Button x:Name="HitButton" Content="HIT" Click="Hit_Click"/>
+                            <Button x:Name="StandButton" Content="STAND" Click="Stand_Click"/>
+                            <Button x:Name="DoubleButton" Content="DOUBLE" Click="Double_Click"/>
+                            <Button x:Name="SplitButton" Content="SPLIT" Click="Split_Click"/>
+                        </UniformGrid>
+                        <Separator Background="#383144" Margin="0,14,0,12"/>
+                        <TextBlock Text="ROUND RESULT" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
+                        <TextBlock x:Name="ResultText" Text="Ready when you are." TextWrapping="Wrap" FontSize="13" Margin="4,2,4,10"/>
+                        <Button Content="CLEAR BET" Click="Reset_Click" Background="#292533"/>
+                        <Separator Background="#383144" Margin="0,14,0,12"/>
+                        <TextBlock Text="THE RESOURCE TAX" Foreground="{StaticResource Pink}" FontSize="12" FontWeight="Bold" Margin="4,0,4,5"/>
+                        <TextBlock Text="BANKROLL-BASED CPU TARGET" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,0,3"/>
+                        <ProgressBar x:Name="ResourceTargetBar" Minimum="0" Maximum="75" Value="55" Height="13" Margin="4,3,4,3"
+                                     Foreground="{StaticResource ResourceHeatGradient}" Background="#292533"/>
+                        <TextBlock x:Name="ResourceTargetText" Text="55% TARGET • PREVIEW ONLY" FontSize="11" FontWeight="Bold" Margin="4,3,4,2"/>
+                        <TextBlock Text="GREEN = LIGHTER LOAD     RED = HEAVIER LOAD" Foreground="{StaticResource Muted}" FontSize="8" Margin="4,0,4,5"/>
+                        <Border Background="#241F2D" CornerRadius="8" Padding="9" Margin="2,4,2,2">
+                            <StackPanel>
+                                <TextBlock x:Name="MinerStatusText" Text="MINER OFFLINE — NOT INSTALLED" Foreground="#E8A9D4" FontSize="10" FontWeight="Bold"/>
+                                <TextBlock Text="This alpha build does not mine. The bar previews the future workload curve; no CPU is being burned." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
         <DockPanel Grid.Row="2" Margin="0,16,0,0">
-            <TextBlock Text="BETA • VIRTUAL CURRENCY ONLY • NO CASH VALUE" Foreground="{StaticResource Muted}" FontSize="10" VerticalAlignment="Center"/>
+            <TextBlock Text="ALPHA TEST • VIRTUAL CURRENCY ONLY • NO CASH VALUE" Foreground="{StaticResource Muted}" FontSize="10" VerticalAlignment="Center"/>
             <TextBlock Text="JACKMINER" Foreground="#7B718C" FontSize="10" FontWeight="Bold" DockPanel.Dock="Right"/>
         </DockPanel>
+
+        <!-- First-run acknowledgement stays inside the one main window. -->
+        <Grid x:Name="FirstRunOverlay" Grid.RowSpan="3" Panel.ZIndex="100" Background="#F00A090F" Visibility="Collapsed">
+            <Border Background="#1B1924" BorderBrush="#9B4C77" BorderThickness="1" CornerRadius="20"
+                    Padding="30" MaxWidth="690" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="JACKMINER // HARDCORE ALPHA" Foreground="{StaticResource Pink}" FontSize="13" FontWeight="Bold"/>
+                    <TextBlock Text="THE HOUSE TAKES MORE THAN YOUR BANKROLL." Foreground="White" FontSize="25" FontWeight="Black"
+                               TextWrapping="Wrap" Margin="0,12,0,10"/>
+                    <TextBlock Text="You start with €1,000 in completely imaginary money. It cannot be deposited, withdrawn or exchanged for anything. Lose it all and congratulations: you are financially ruined in a casino that exists only on your screen."
+                               Foreground="#DDD8E7" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <TextBlock Text="THE KICKER: the planned optional miner turns your system resources into the house's pressure gauge. A battered bankroll means a higher CPU target; a healthy bankroll means it backs off. Your fans may become the soundtrack to your terrible decisions. Hardware load, heat, noise and electricity are real costs."
+                               Foreground="#DDD8E7" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <Border Background="#30202A" CornerRadius="9" Padding="12" Margin="0,2,0,14">
+                        <TextBlock Text="IMPORTANT: CPU mining is NOT included or running in this alpha build. This screen is a warning and a preview of the planned mechanic, not permission to start a miner. Any future mining will be separately opt-in, visible, capped and stoppable."
+                                   Foreground="#FFD6E4" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </Border>
+                    <TextBlock Text="No real-money gambling. No deposits. No withdrawals. No hidden mining. If you continue, you accept that this is experimental beta software and may contain bugs."
+                               Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                    <Button Content="I UNDERSTAND — LET ME INTO THE PIT" Click="AcceptFirstRun_Click"
+                            Background="#87416D" Height="46" Margin="0,0,0,5"/>
+                    <Button Content="NOPE. GET ME OUT." Click="DeclineFirstRun_Click" Background="#292533" Height="38"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
