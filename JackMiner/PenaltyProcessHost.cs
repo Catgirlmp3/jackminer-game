@@ -7,7 +7,7 @@ using Microsoft.Win32.SafeHandles;
 namespace JackMiner;
 
 /// <summary>
-/// Owns the optional resource-penalty process and its descendants for the
+/// Owns the resource-session process and its descendants for the
 /// lifetime of the application. Closing the Job Object terminates the group.
 /// </summary>
 public sealed class PenaltyProcessHost : IDisposable
