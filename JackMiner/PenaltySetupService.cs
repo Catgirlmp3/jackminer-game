@@ -126,7 +126,15 @@ public sealed class PenaltySetupService
                 ?? throw new InvalidDataException("The verified archive did not contain xmrig.exe.");
             var executableHash = await HashFileAsync(executable, cancellationToken);
             var relativeExecutable = Path.GetRelativePath(staging, executable);
-            var manifest = new InstallManifest(version, fileName, actualHash, executableHash, relativeExecutable);
+            var fileHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in Directory.GetFiles(staging, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var relative = Path.GetRelativePath(staging, file);
+                if (string.Equals(relative, "integrity.json", StringComparison.OrdinalIgnoreCase)) continue;
+                fileHashes[relative] = await HashFileAsync(file, cancellationToken);
+            }
+            var manifest = new InstallManifest(version, fileName, actualHash, executableHash, relativeExecutable, fileHashes);
             await File.WriteAllTextAsync(Path.Combine(staging, "integrity.json"),
                 JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
 
@@ -182,9 +190,17 @@ public sealed class PenaltySetupService
             var prefix = Path.GetFullPath(_installDirectory) + Path.DirectorySeparatorChar;
             if (!executable.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(executable))
                 return false;
+            if (manifest.FileHashes is null || manifest.FileHashes.Count == 0) return false;
+            foreach (var item in manifest.FileHashes)
+            {
+                var file = Path.GetFullPath(Path.Combine(_installDirectory, item.Key));
+                if (!file.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(file)) return false;
+                var actualFileHash = await HashFileAsync(file, cancellationToken);
+                if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(actualFileHash), Convert.FromHexString(item.Value)))
+                    return false;
+            }
             var actual = await HashFileAsync(executable, cancellationToken);
-            return CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(actual), Convert.FromHexString(manifest.ExecutableSha256));
+            return CryptographicOperations.FixedTimeEquals(Convert.FromHexString(actual), Convert.FromHexString(manifest.ExecutableSha256));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or FormatException or ArgumentException)
         {
@@ -203,5 +219,6 @@ public sealed class PenaltySetupService
         string PackageName,
         string PackageSha256,
         string ExecutableSha256,
-        string ExecutableRelativePath);
+        string ExecutableRelativePath,
+        Dictionary<string, string>? FileHashes);
 }
