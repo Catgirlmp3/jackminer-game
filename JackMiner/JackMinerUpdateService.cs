@@ -215,10 +215,10 @@ try {{
             if ($actual -ne $entry.Value.ToLowerInvariant()) {{ throw ""Installed hash mismatch: $($entry.Name)"" }}
         }}
         if (-not (Test-Path -LiteralPath (Join-Path $target $exe))) {{ throw 'The application executable is missing.' }}
-        if (Test-Path -LiteralPath $backup) {{ Remove-Item -LiteralPath $backup -Recurse -Force }}
         Add-Type -AssemblyName PresentationFramework
         [System.Windows.MessageBox]::Show('Update installed and every file hash verified. Thank you for keeping JackMiner current. Mwah. 💋','JackMiner — Update Complete','OK','Information') | Out-Null
         Start-Process -FilePath (Join-Path $target $exe)
+        if (Test-Path -LiteralPath $backup) {{ try {{ Remove-Item -LiteralPath $backup -Recurse -Force -ErrorAction Stop }} catch {{ }} }}
     }} catch {{
         if (Test-Path -LiteralPath $target) {{ Remove-Item -LiteralPath $target -Recurse -Force }}
         if (Test-Path -LiteralPath $backup) {{ Move-Item -LiteralPath $backup -Destination $target }}
