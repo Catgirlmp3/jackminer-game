@@ -134,16 +134,26 @@ public sealed class PenaltyProcessHost : IDisposable
     {
         lock (_sync)
         {
-            _job?.Dispose();
-            _job = null;
-            if (_process is not { HasExited: false } process) return;
+            var process = _process;
             try
             {
-                if (!process.HasExited) process.Kill(entireProcessTree: true);
-                process.WaitForExit(5000);
+                if (process is { HasExited: false })
+                {
+                    try
+                    {
+                        process.Kill(entireProcessTree: true);
+                        process.WaitForExit(5000);
+                    }
+                    catch (InvalidOperationException) { }
+                    catch (Win32Exception) { }
+                }
             }
-            catch (InvalidOperationException) { }
-            catch (Win32Exception) { }
+            finally
+            {
+                // Closing the job remains the final backstop for any surviving descendants.
+                _job?.Dispose();
+                _job = null;
+            }
         }
     }
 
