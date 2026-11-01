@@ -197,7 +197,11 @@ $backup = {Q(backup)}
 $waitPid = {parentPid}
 $exe = {Q(executable)}
 try {{
-    try {{ Wait-Process -Id $waitPid -Timeout 180 -ErrorAction Stop }} catch {{ }}
+    $deadline = (Get-Date).AddMinutes(3)
+    while (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) {{
+        if ((Get-Date) -gt $deadline) {{ throw 'JackMiner did not close within the update timeout.' }}
+        Start-Sleep -Milliseconds 250
+    }}
     $manifestData = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     if (Test-Path -LiteralPath $backup) {{ Remove-Item -LiteralPath $backup -Recurse -Force }}
     if (Test-Path -LiteralPath $target) {{ Move-Item -LiteralPath $target -Destination $backup }}
