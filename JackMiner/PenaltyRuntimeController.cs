@@ -83,16 +83,34 @@ public sealed class PenaltyRuntimeController : IDisposable
         }
     }
 
-    public async Task UpdateCpuTargetAsync(int cpuTarget, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateCpuTargetAsync(int cpuTarget, CancellationToken cancellationToken = default)
     {
         if (!_host.IsRunning || _activeConfiguration is null || _apiEndpoint is null)
-            return;
+            return false;
 
-        _activeConfiguration["cpu"]!["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 100);
+        // This is the actual safety boundary: apply the Windows Job Object hard
+        // cap first. If Windows cannot enforce the new limit, let the caller stop
+        // the session rather than continuing without the requested cap.
         _host.SetCpuLimit(cpuTarget);
-        using var content = new StringContent(_activeConfiguration.ToJsonString(), Encoding.UTF8, "application/json");
-        using var response = await _api.PutAsync(new Uri(_apiEndpoint, "1/config"), content, cancellationToken);
-        response.EnsureSuccessStatusCode();
+
+        // XMRig's local API is only a secondary optimisation for its thread hint.
+        // A transient API error must not terminate the whole session: the Windows
+        // hard cap above is already active and continues to constrain CPU usage.
+        _activeConfiguration["cpu"]!["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 100);
+        try
+        {
+            using var content = new StringContent(_activeConfiguration.ToJsonString(), Encoding.UTF8, "application/json");
+            using var response = await _api.PutAsync(new Uri(_apiEndpoint, "1/config"), content, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 
     public void ResetSession()

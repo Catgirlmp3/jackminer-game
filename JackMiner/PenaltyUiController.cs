@@ -99,9 +99,14 @@ public partial class MainWindow
         _penaltyTargetUpdatePending = true;
         try
         {
-            await Services.PenaltyRuntime.UpdateCpuTargetAsync(target);
+            var apiUpdated = await Services.PenaltyRuntime.UpdateCpuTargetAsync(target);
+            if (!Services.PenaltyHost.IsRunning)
+                throw new InvalidOperationException("The resource process exited while its CPU limit was being updated.");
+
             _lastPenaltyTarget = target;
-            RuntimeDetailText.Text = $"Windows hard CPU cap updated: {target}% (mode maximum {ModeMaximum()}%).";
+            RuntimeDetailText.Text = apiUpdated
+                ? $"Windows hard CPU cap updated: {target}% (mode maximum {ModeMaximum()}%)."
+                : $"Windows hard CPU cap updated: {target}% (mode maximum {ModeMaximum()}%). The runtime's optional configuration API did not respond; the Windows CPU cap remains active and the session will continue.";
             UpdateResourceMeter();
         }
         catch (Exception ex)
