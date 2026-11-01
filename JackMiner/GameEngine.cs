@@ -77,6 +77,25 @@ public sealed class GameEngine
     public bool CanDouble => ActiveHand is { Cards.Count: 2, IsFinished: false } hand && Balance >= hand.Bet;
     public bool CanSplit => ActiveHand is { CanSplit: true, IsFinished: false } hand && _hands.Count == 1 && Balance >= hand.Bet;
 
+    public void RestoreBalance(decimal balance)
+    {
+        if (RoundInProgress) throw new InvalidOperationException("Cannot restore a balance during a round.");
+        Balance = Math.Clamp(balance, 0m, 1_000_000_000m);
+    }
+
+    public bool TrySpend(decimal amount)
+    {
+        if (amount <= 0 || Balance < amount || RoundInProgress) return false;
+        Balance -= amount;
+        return true;
+    }
+
+    public void AwardBonus(decimal amount)
+    {
+        if (amount <= 0 || RoundInProgress) return;
+        Balance = Math.Min(1_000_000_000m, Balance + amount);
+    }
+
     public bool StartRound(decimal wager)
     {
         if (RoundInProgress || wager <= 0 || wager > 300 || Balance < wager || wager % 5 != 0) return false;
