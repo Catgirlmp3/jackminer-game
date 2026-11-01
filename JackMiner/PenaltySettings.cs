@@ -6,6 +6,7 @@ namespace JackMiner;
 public sealed class PenaltySettings
 {
     public string ResourceMode { get; set; } = "Medium";
+    public bool AutoUpdateOnStartup { get; set; } = true;
 }
 
 public sealed class PenaltySettingsStore
@@ -32,7 +33,8 @@ public sealed class PenaltySettingsStore
         ArgumentNullException.ThrowIfNull(settings);
         var normalized = new PenaltySettings
         {
-            ResourceMode = settings.ResourceMode is "Easy" or "Medium" or "Hard" or "Beta" ? settings.ResourceMode : "Medium"
+            ResourceMode = settings.ResourceMode is "Easy" or "Medium" or "Hard" or "Beta" ? settings.ResourceMode : "Medium",
+            AutoUpdateOnStartup = settings.AutoUpdateOnStartup
         };
         var directory = Path.GetDirectoryName(_settingsPath)!;
         Directory.CreateDirectory(directory);
