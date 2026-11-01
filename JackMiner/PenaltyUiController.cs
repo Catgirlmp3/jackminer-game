@@ -7,10 +7,11 @@ public partial class MainWindow
     private PenaltySettings _penaltySettings = new();
     private int _lastPenaltyTarget;
     private bool _penaltyTargetUpdatePending;
+    private bool _startupUpdateCheckRunning;
     private App Services => (App)Application.Current;
     private bool IsResourceSessionActive => Services.PenaltyHost.IsRunning;
 
-    private void PenaltyUi_Loaded(object sender, RoutedEventArgs e)
+    private async void PenaltyUi_Loaded(object sender, RoutedEventArgs e)
     {
         _penaltySettings = Services.PenaltySettings.Load();
         ResourceModeComboBox.SelectedValue = _penaltySettings.ResourceMode;
@@ -24,6 +25,51 @@ public partial class MainWindow
                 "JackMiner — Save Recovery", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         RefreshPenaltyControls();
+        if (_penaltySettings.AutoUpdateOnStartup)
+            await CheckForStartupUpdateAsync();
+    }
+
+    private async Task CheckForStartupUpdateAsync()
+    {
+        if (_startupUpdateCheckRunning) return;
+        _startupUpdateCheckRunning = true;
+        try
+        {
+            RuntimeDetailText.Text = "Checking for JackMiner updates...";
+            var update = await Services.JackMinerUpdater.CheckForUpdateAsync();
+            if (update is null)
+            {
+                RuntimeDetailText.Text = "JackMiner is up to date.";
+                return;
+            }
+
+            var answer = MessageBox.Show(
+                $"A JackMiner game update is available. Updating is highly recommended before playing.\\n\\nBuild: {update.Commit[..8]}\\n\\nThe update will download the official alpha package, verify its SHA-256, then ask Windows to authorize the local PowerShell installer. JackMiner will close while its files are replaced, verify every installed file, and reopen automatically. Your bankroll and collection are stored separately and will be preserved.\\n\\nInstall this update now?",
+                "JackMiner — Recommended Game Update", MessageBoxButton.YesNo, MessageBoxImage.Information);
+            if (answer != MessageBoxResult.Yes)
+            {
+                RuntimeDetailText.Text = "Update postponed. You can update later or disable startup checks in SETTINGS.";
+                return;
+            }
+
+            RuntimeDetailText.Text = "Downloading and verifying the official JackMiner update...";
+            await Services.JackMinerUpdater.LaunchVerifiedUpdateAsync(update);
+            MessageBox.Show(
+                "The update package has been downloaded and verified. Windows will now ask permission to run the local updater. JackMiner will close, install, verify the files and restart.",
+                "JackMiner — Windows Permission Required", MessageBoxButton.OK, MessageBoxImage.Information);
+            Close();
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            RuntimeDetailText.Text = "Update cancelled in the Windows permission prompt. The current version remains installed.";
+        }
+        catch (Exception ex)
+        {
+            RuntimeDetailText.Text = "Startup update check failed; continuing with the installed version.";
+            MessageBox.Show($"JackMiner could not complete its startup update check. Your current installation has not been replaced.\\n\\n{ex.Message}",
+                "JackMiner — Update Check Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally { _startupUpdateCheckRunning = false; }
     }
 
     private void ResourceMode_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -68,7 +114,8 @@ public partial class MainWindow
     {
         _penaltySettings = new PenaltySettings
         {
-            ResourceMode = ResourceModeComboBox.SelectedValue as string ?? _penaltySettings.ResourceMode
+            ResourceMode = ResourceModeComboBox.SelectedValue as string ?? _penaltySettings.ResourceMode,
+            AutoUpdateOnStartup = _penaltySettings.AutoUpdateOnStartup
         };
         Services.PenaltySettings.Save(_penaltySettings);
     }
