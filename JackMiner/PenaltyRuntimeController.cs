@@ -327,6 +327,12 @@ public sealed class PenaltyRuntimeController : IDisposable
             1,
             physicalCores);
 
+        // Keep the final physical core exclusive to an explicit 100% recovery
+        // contract. Otherwise 95% rounds up to all cores on an 8-core CPU,
+        // making the bailout indistinguishable from the hardest normal mode.
+        if (cpuTarget < 100 && physicalCores > 1)
+            workerCount = Math.Min(workerCount, physicalCores - 1);
+
         var profile = new JsonArray();
         for (var i = 0; i < workerCount; i++)
             profile.Add(-1); // -1 = let XMRig schedule this worker.
