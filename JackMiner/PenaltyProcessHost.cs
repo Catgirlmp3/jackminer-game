@@ -59,19 +59,20 @@ public sealed class PenaltyProcessHost : IDisposable
                 startInfo.ArgumentList.Add(argument);
 
             var job = CreateKillOnCloseJob();
-            SetCpuRate(job, cpuLimitPercent);
-            var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-            process.OutputDataReceived += (_, e) => { if (e.Data is not null) OutputReceived?.Invoke(e.Data); };
-            process.ErrorDataReceived += (_, e) => { if (e.Data is not null) OutputReceived?.Invoke(e.Data); };
-            process.Exited += (_, _) =>
-            {
-                int? code = null;
-                try { code = process.ExitCode; } catch (InvalidOperationException) { }
-                Exited?.Invoke(code);
-            };
-
+            Process? process = null;
             try
             {
+                SetCpuRate(job, cpuLimitPercent);
+                process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+                process.OutputDataReceived += (_, e) => { if (e.Data is not null) OutputReceived?.Invoke(e.Data); };
+                process.ErrorDataReceived += (_, e) => { if (e.Data is not null) OutputReceived?.Invoke(e.Data); };
+                process.Exited += (_, _) =>
+                {
+                    int? code = null;
+                    try { code = process.ExitCode; } catch (InvalidOperationException) { }
+                    Exited?.Invoke(code);
+                };
+
                 if (!process.Start())
                     throw new InvalidOperationException("Windows did not start the resource process.");
                 if (!AssignProcessToJobObject(job, process.Handle))
@@ -87,8 +88,11 @@ public sealed class PenaltyProcessHost : IDisposable
             }
             catch
             {
-                try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
-                process.Dispose();
+                if (process is not null)
+                {
+                    try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+                    process.Dispose();
+                }
                 job.Dispose();
                 throw;
             }
