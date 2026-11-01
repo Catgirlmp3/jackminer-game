@@ -94,6 +94,10 @@ public sealed class JackMinerUpdateService
             await File.WriteAllTextAsync(manifest, JsonSerializer.Serialize(new { files = hashes }), cancellationToken);
 
             var target = Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar);
+            var dataRoot = Path.GetFullPath(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JackMiner")).TrimEnd(Path.DirectorySeparatorChar);
+            if (string.Equals(target, dataRoot, StringComparison.OrdinalIgnoreCase) ||
+                dataRoot.StartsWith(target + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("JackMiner is running from a folder that contains its persistent user data. Move the application into its own folder before using automatic updates.");
             var executable = Path.GetFileName(Environment.ProcessPath ?? "JackMiner.exe");
             var scriptPath = Path.Combine(updateRoot, "apply-update.ps1");
             await File.WriteAllTextAsync(scriptPath, BuildPowerShellScript(target, payload, manifest, executable, Environment.ProcessId), cancellationToken);
