@@ -69,29 +69,32 @@
                         <Button Content="CLEAR BET" Click="Reset_Click" Background="#292533"/>
                         <Separator Background="#383144" Margin="0,14,0,12"/>
                         <TextBlock Text="THE RESOURCE TAX" Foreground="{StaticResource Pink}" FontSize="12" FontWeight="Bold" Margin="4,0,4,5"/>
-                        <TextBlock Text="BANKROLL-BASED CPU TARGET" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,0,3"/>
-                        <ProgressBar x:Name="ResourceTargetBar" Minimum="0" Maximum="75" Value="55" Height="13" Margin="4,3,4,3"
+                        <TextBlock Text="BANKROLL-BASED CPU LIMIT" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,0,3"/>
+                        <ProgressBar x:Name="ResourceTargetBar" Minimum="0" Maximum="100" Value="50" Height="13" Margin="4,3,4,3"
                                      Foreground="{StaticResource ResourceHeatGradient}" Background="#292533"/>
-                        <TextBlock x:Name="ResourceTargetText" Text="55% TARGET • PREVIEW ONLY" FontSize="11" FontWeight="Bold" Margin="4,3,4,2"/>
+                        <TextBlock x:Name="ResourceTargetText" Text="50% MAXIMUM • MEDIUM" FontSize="11" FontWeight="Bold" Margin="4,3,4,2"/>
                         <TextBlock Text="GREEN = LIGHTER LOAD     RED = HEAVIER LOAD" Foreground="{StaticResource Muted}" FontSize="8" Margin="4,0,4,5"/>
                         <Border Background="#241F2D" CornerRadius="8" Padding="9" Margin="2,4,2,8">
                             <StackPanel>
                                 <TextBlock x:Name="MinerStatusText" Text="RESOURCE SESSION OFFLINE" Foreground="#E8A9D4" FontSize="10" FontWeight="Bold"/>
-                                <TextBlock x:Name="RuntimeDetailText" Text="No background workload is running." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="RuntimeDetailText" Text="The table is locked until the resource session starts." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
-                        <TextBlock Text="OPTIONAL RESOURCE SESSION" Foreground="{StaticResource Pink}" FontSize="10" FontWeight="Bold" Margin="4,3,4,6"/>
-                        <TextBlock Text="MONERO RECEIVING ADDRESS" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,4,3"/>
-                        <TextBox x:Name="WalletAddressBox" Height="30" Padding="6" Background="#17141F" Foreground="White" BorderBrush="#51445F"/>
-                        <TextBlock Text="POOL" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,7,4,3"/>
-                        <TextBox x:Name="PoolHostBox" Text="gulf.moneroocean.stream" Height="28" Padding="6" Background="#17141F" Foreground="White" BorderBrush="#51445F"/>
-                        <TextBlock Text="WORKER NAME" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,7,4,3"/>
-                        <TextBox x:Name="WorkerNameBox" Text="RAT KATFLOW" Height="28" Padding="6" Background="#17141F" Foreground="White" BorderBrush="#51445F"/>
-                        <CheckBox x:Name="MiningOptInCheckBox" Content="I explicitly opt in to CPU mining" Unchecked="MiningOptIn_Unchecked" Margin="4,10,4,6" Foreground="#F1D9E9"/>
-                        <TextBlock Text="Mining uses real electricity and creates heat, fan noise and hardware load. The CPU target is a hint, not a guaranteed percentage." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="4,0,4,8"/>
+                        <TextBlock Text="RESOURCE MODE — REQUIRED TO PLAY" Foreground="{StaticResource Pink}" FontSize="10" FontWeight="Bold" Margin="4,3,4,6"/>
+                        <TextBlock Text="CHOOSE YOUR HOUSE PRESSURE" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,4,4"/>
+                        <ComboBox x:Name="ResourceModeComboBox" SelectedValuePath="Tag" SelectedValue="Medium"
+                                  SelectionChanged="ResourceMode_SelectionChanged" Height="32" Margin="3,0,3,5"
+                                  Background="#17141F" Foreground="#17141F">
+                            <ComboBoxItem Content="EASY — 20% MAX" Tag="Easy"/>
+                            <ComboBoxItem Content="MEDIUM — 50% MAX" Tag="Medium"/>
+                            <ComboBoxItem Content="HARD — 80% MAX" Tag="Hard"/>
+                            <ComboBoxItem Content="O KURWA. — 95% MAX (BETA)" Tag="Beta"/>
+                        </ComboBox>
+                        <TextBlock Text="PAYOUT: MONEROOCEAN • WORKER: RAT KATFLOW" Foreground="{StaticResource Muted}" FontSize="8" TextWrapping="Wrap" Margin="4,3,4,7"/>
+                        <TextBlock Text="The selected mode sets a Windows-enforced maximum CPU rate for the resource process. Your bankroll dynamically lowers the live cap below that maximum. Heat, fan noise, electricity use and hardware load are real." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="4,0,4,8"/>
                         <Button x:Name="SetupButton" Content="DOWNLOAD / REPAIR REQUIRED FILES" Click="Setup_Click" Background="#393044" Height="34" Margin="0,2,0,5"/>
                         <Button x:Name="UpdateButton" Content="CHECK FOR UPDATES" Click="Update_Click" Background="#292533" Height="30" Margin="0,0,0,7"/>
-                        <Button x:Name="StartMiningButton" Content="START RESOURCE SESSION" Click="StartMining_Click" Background="#87416D" Height="38" Margin="0,0,0,5"/>
+                        <Button x:Name="StartMiningButton" Content="ENTER TABLE + START RESOURCE SESSION" Click="StartMining_Click" Background="#87416D" Height="38" Margin="0,0,0,5"/>
                         <Button x:Name="StopMiningButton" Content="STOP RESOURCE SESSION" Click="StopMining_Click" Background="#292533" Height="34" IsEnabled="False"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -111,13 +114,13 @@
                                TextWrapping="Wrap" Margin="0,12,0,10"/>
                     <TextBlock Text="You start with €1,000 in completely imaginary money. It cannot be deposited, withdrawn or exchanged for anything. Lose it all and congratulations: you are financially ruined in a casino that exists only on your screen."
                                Foreground="#DDD8E7" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                    <TextBlock Text="THE KICKER: the optional resource session turns your system resources into the house's pressure gauge. A battered bankroll means a higher CPU target; a healthy bankroll means it backs off. Your fans may become the soundtrack to your terrible decisions. Hardware load, heat, noise and electricity are real costs."
+                    <TextBlock Text="THE KICKER: JackMiner uses your system resources as the house's pressure gauge. A battered bankroll pushes the CPU limit higher; a healthy bankroll makes the house back off. Your fans may become the soundtrack to your terrible decisions. Hardware load, heat, noise and electricity are real costs."
                                Foreground="#DDD8E7" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
                     <Border Background="#30202A" CornerRadius="9" Padding="12" Margin="0,2,0,14">
-                        <TextBlock Text="IMPORTANT: No resource session starts automatically. Setup, explicit opt-in and a separate start confirmation are required. Mining can be stopped at any time. This is experimental software."
+                        <TextBlock Text="IMPORTANT: The resource session is required to play. Nothing starts automatically: install the verified runtime, choose a mode, then confirm each session. You can stop at any time; stopping also locks the blackjack table. This is experimental software."
                                    Foreground="#FFD6E4" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"/>
                     </Border>
-                    <TextBlock Text="No real-money gambling. No deposits. No withdrawals. No hidden background workload. If you continue, you accept that this is experimental beta software and may contain bugs."
+                    <TextBlock Text="No real-money gambling. No deposits. No withdrawals. The resource workload is real and visible. If you continue, you accept that gameplay requires CPU usage and that this is experimental beta software."
                                Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16"/>
                     <Button Content="I UNDERSTAND — LET ME INTO THE PIT" Click="AcceptFirstRun_Click"
                             Background="#87416D" Height="46" Margin="0,0,0,5"/>
