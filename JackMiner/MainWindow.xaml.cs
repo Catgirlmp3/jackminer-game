@@ -161,6 +161,12 @@ public partial class MainWindow : Window
         DealButton.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager > 0 && _selectedWager <= _game.Balance;
         foreach (Button chip in ChipPanel.Children)
             chip.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager < 300 && _selectedWager < _game.Balance;
+
+        if (_economyInitialized)
+        {
+            PersistEconomy();
+            RefreshShop();
+        }
     }
 
     private static Border CreateCard(string face, bool isRed, bool hidden)
