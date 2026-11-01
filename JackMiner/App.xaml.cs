@@ -17,6 +17,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        PenaltyRuntime.Dispose();
         PenaltyHost.Dispose();
         base.OnExit(e);
     }
