@@ -71,6 +71,7 @@ public partial class MainWindow : Window
 
     private void Deal_Click(object sender, RoutedEventArgs e)
     {
+        if (!IsResourceSessionActive) return;
         if (_selectedWager <= 0)
         {
             TableStatus.Text = "Choose at least one chip first.";
@@ -85,13 +86,14 @@ public partial class MainWindow : Window
         RefreshTable();
     }
 
-    private void Hit_Click(object sender, RoutedEventArgs e) { _game.Hit(); RefreshTable(); }
-    private void Stand_Click(object sender, RoutedEventArgs e) { _game.Stand(); RefreshTable(); }
-    private void Double_Click(object sender, RoutedEventArgs e) { _game.DoubleDown(); RefreshTable(); }
-    private void Split_Click(object sender, RoutedEventArgs e) { _game.Split(); RefreshTable(); }
+    private void Hit_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Hit(); RefreshTable(); }
+    private void Stand_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Stand(); RefreshTable(); }
+    private void Double_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.DoubleDown(); RefreshTable(); }
+    private void Split_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Split(); RefreshTable(); }
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
+        if (!IsResourceSessionActive) return;
         if (_game.RoundInProgress)
         {
             TableStatus.Text = "Finish the current round before clearing your bet.";
@@ -105,17 +107,14 @@ public partial class MainWindow : Window
     {
         BalanceText.Text = _game.Balance.ToString("C2", CultureInfo.GetCultureInfo("en-IE"));
         WagerText.Text = _selectedWager.ToString("C0", CultureInfo.GetCultureInfo("en-IE"));
-        TableStatus.Text = _game.Status;
+        TableStatus.Text = IsResourceSessionActive ? _game.Status : "The table is closed. Start a confirmed resource session to play.";
         ResultText.Text = _game.RoundInProgress ? "Round in progress." :
             _game.LastNet > 0 ? $"You won {_game.LastNet:C2} this round." :
             _game.LastNet < 0 ? $"You lost {Math.Abs(_game.LastNet):C2} this round." : "Ready for the next hand.";
 
-        // Smooth preview curve: broke = 75% target, €3,000+ = 15% target.
-        // This is only a UI preview until the separately opt-in miner is implemented.
-        var targetLoad = Math.Clamp(75m - (_game.Balance / 3000m * 60m), 15m, 75m);
+        var targetLoad = CurrentPenaltyTarget();
         UpdatePenaltyTarget(targetLoad);
-        ResourceTargetBar.Value = (double)targetLoad;
-        ResourceTargetText.Text = Services.PenaltyHost.IsRunning ? $"{targetLoad:0}% TARGET • LIVE CONTROL" : $"{targetLoad:0}% TARGET • PREVIEW ONLY";
+        UpdateResourceMeter();
 
         DealerCards.Children.Clear();
         for (var i = 0; i < _game.Dealer.Cards.Count; i++)
@@ -154,13 +153,14 @@ public partial class MainWindow : Window
             }
         }
 
-        HitButton.IsEnabled = _game.CanHit;
-        StandButton.IsEnabled = _game.CanStand;
-        DoubleButton.IsEnabled = _game.CanDouble;
-        SplitButton.IsEnabled = _game.CanSplit;
-        DealButton.IsEnabled = !_game.RoundInProgress && _selectedWager > 0 && _selectedWager <= _game.Balance;
+        var tableOpen = IsResourceSessionActive;
+        HitButton.IsEnabled = tableOpen && _game.CanHit;
+        StandButton.IsEnabled = tableOpen && _game.CanStand;
+        DoubleButton.IsEnabled = tableOpen && _game.CanDouble;
+        SplitButton.IsEnabled = tableOpen && _game.CanSplit;
+        DealButton.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager > 0 && _selectedWager <= _game.Balance;
         foreach (Button chip in ChipPanel.Children)
-            chip.IsEnabled = !_game.RoundInProgress && _selectedWager < 300 && _selectedWager < _game.Balance;
+            chip.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager < 300 && _selectedWager < _game.Balance;
     }
 
     private static Border CreateCard(string face, bool isRed, bool hidden)
