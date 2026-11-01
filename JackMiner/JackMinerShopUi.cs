@@ -19,6 +19,7 @@ public partial class MainWindow
     private TextBlock? _giveawayCountdown;
     private Button? _claimGiveawayButton;
     private Border? _tableLockOverlay;
+    private CheckBox? _autoUpdateCheckBox;
 
     private bool CanUseTable => IsResourceSessionActive && _tableUnlockedThisSession;
 
@@ -75,6 +76,23 @@ public partial class MainWindow
         rewards.Children.Add(new TextBlock { Text = "A drop becomes available every 15 minutes. You must claim it yourself; missed drops do not stack.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
         tabs.Items.Add(new TabItem { Header = "HOUSE DROPS", Content = rewards });
 
+        var settingsPanel = new StackPanel { Margin = new Thickness(12) };
+        settingsPanel.Children.Add(new TextBlock { Text = "JACKMINER PREFERENCES", Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.Bold });
+        settingsPanel.Children.Add(new TextBlock { Text = "Keep the game current without having to remember to check manually.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 14) });
+        _autoUpdateCheckBox = new CheckBox
+        {
+            Content = "CHECK FOR GAME UPDATES ON STARTUP (RECOMMENDED)",
+            IsChecked = _penaltySettings.AutoUpdateOnStartup,
+            Foreground = Brushes.White,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 4, 0, 8)
+        };
+        _autoUpdateCheckBox.Checked += AutoUpdatePreference_Changed;
+        _autoUpdateCheckBox.Unchecked += AutoUpdatePreference_Changed;
+        settingsPanel.Children.Add(_autoUpdateCheckBox);
+        settingsPanel.Children.Add(new TextBlock { Text = "When an update is available, JackMiner explains what will happen and asks before downloading or replacing files. Windows elevation is requested for the local PowerShell installer. You can turn this check off at any time.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, FontSize = 11 });
+        tabs.Items.Add(new TabItem { Header = "SETTINGS", Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = settingsPanel } });
+
         sidePanel.Child = tabs;
         BuildShop();
         BuildGiveawayPopup();
@@ -83,6 +101,13 @@ public partial class MainWindow
         RefreshInventory();
         RefreshGiveawayUi();
         PersistEconomy();
+    }
+
+    private void AutoUpdatePreference_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_autoUpdateCheckBox is null) return;
+        _penaltySettings.AutoUpdateOnStartup = _autoUpdateCheckBox.IsChecked == true;
+        Services.PenaltySettings.Save(_penaltySettings);
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent, Func<T, bool> predicate) where T : DependencyObject
