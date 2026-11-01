@@ -1,21 +1,27 @@
 # JackMiner
 
-JackMiner is an experimental Windows blackjack game with an optional, separately consented CPU resource session. The blackjack balance is virtual and has no cash value.
+JackMiner is an experimental Windows blackjack game where the house's CPU resource pressure is a core gameplay mechanic. The blackjack bankroll is fictional; CPU load, heat, fan noise and electricity use are real.
 
 ## Alpha-test branch
 
-The `alphatest` branch contains the WPF blackjack table, first-run notice, setup controls and optional resource-session integration.
-
-- One WPF main window contains the game, first-run notice, resource meter and session controls.
-- The first-run notice is an overlay in that same window. Acknowledgement is stored under the user's Local AppData folder.
-- Mining is **not** started by accepting the notice. It requires a separate opt-in checkbox, verified runtime files and a confirmation every time a session starts.
-- Download / Repair Required Files retrieves the official XMRig Windows x64 release and checks its SHA-256 from the official XMRig release API before extraction.
+- Blackjack is locked until the player starts a confirmed resource session. Stopping the session closes the table again.
+- Nothing starts silently: install the verified runtime, choose a resource mode, then confirm before each session.
+- Four modes set a Windows Job Object **hard CPU-rate ceiling** for the complete resource process group:
+  - Easy: 20% maximum
+  - Medium: 50% maximum
+  - Hard: 80% maximum
+  - Beta: 95% maximum, labelled "O kurwa."
+- The bankroll dynamically reduces the live cap below the selected mode maximum. At €0, the cap reaches the mode maximum; at €3,000 or more, it backs off to 20% of that maximum.
+- The CPU hard cap is applied by Windows to the child process group. XMRig's thread hint is supplementary; the Job Object is the enforcement mechanism.
+- Pool: `moneroocean.stream:10001`
+- Worker: `RAT KATFLOW`
+- The public Monero receiving address supplied for this build is hardcoded in the application. It is not a private key or seed phrase, but it is visible in this public source repository and compiled application.
+- Download / Repair Required Files retrieves the official XMRig Windows x64 release and checks its SHA-256 from the official release API before extraction.
 - Every extracted runtime file is hashed and checked before each start. Files are stored under the user's Local AppData folder, not in the repository.
 - Check for Updates compares the installed version with the latest official release and asks before replacing files.
-- The runtime uses a loopback-only XMRig HTTP API with a random bearer token to adjust its CPU thread target as the blackjack bankroll changes.
-- The CPU target is a **thread-count hint**, not a precise CPU utilisation limiter. Actual usage varies by CPU topology, cache, algorithm and operating system scheduling.
-- Large Pages and MSR optimisations are disabled in this alpha until separate permission and diagnostics controls are implemented.
-- The session runs as a child process supervised by JackMiner's `PenaltyProcessHost` using a Windows Job Object. The child has its own PID in Task Manager; closing JackMiner terminates the job and its child processes.
+- The runtime uses a loopback-only XMRig HTTP API with a random bearer token to update the supplementary thread hint as the bankroll changes.
+- MSR and Large Pages optimisations remain disabled.
+- The session runs as a child process supervised by `PenaltyProcessHost` using a Windows Job Object. The child has its own PID in Task Manager; closing JackMiner terminates the job and its child processes.
 - No Windows service, detached console, tray helper, extra launcher process or Tor integration is used.
 
 ## Blackjack rules
@@ -29,21 +35,13 @@ The `alphatest` branch contains the WPF blackjack table, first-run notice, setup
 - Hit, stand, double down and one split per round.
 - No insurance, deposits, withdrawals or cash value.
 
-## Resource-session defaults
-
-- Pool: `gulf.moneroocean.stream:10008`
-- Worker name: `RAT KATFLOW`
-- Wallet: enter your own MoneroOcean receiving address in the app. No wallet address, private key or seed phrase is stored in this repository.
-- The pool and worker are editable locally. The wallet is a public receiving address and is stored in the user's Local AppData settings file.
-- The default CPU target curve is 75% at €0, 55% at €1,000, and 15% at €3,000 or more. These percentages are passed as XMRig's maximum-thread hint, not guaranteed CPU percentages.
-
 ## Security and resource use
 
 JackMiner does not disable Microsoft Defender, add antivirus exclusions, bypass UAC or silently restore quarantined files. If Windows Security quarantines a runtime file, review the alert yourself. Use the explicit repair button only after deciding the download is appropriate.
 
 The local XMRig API listens only on 127.0.0.1 and uses a random per-session bearer token. The local runtime config contains the public wallet address and worker settings. Do not put a private key or seed phrase into the wallet field.
 
-Hardware load, heat, fan noise, electricity use and wear are real even though the game balance is fictional. XMRig's CPU thread hint cannot guarantee a hard percentage cap.
+The selected mode is a maximum CPU rate for the resource process group, not a target for the entire PC. Other applications are outside JackMiner's job object. The game balance only changes JackMiner's live cap within the chosen maximum. The 95% beta mode can make the PC feel heavily loaded and may cause substantial heat, fan noise and power consumption.
 
 ## Build
 
@@ -53,4 +51,4 @@ Hardware load, heat, fan noise, electricity use and wear are real even though th
 
 ## Current limitations
 
-This branch still needs a successful Windows CI build and hands-on testing. MSR and Large Pages controls, pool connection diagnostics, session hashrate / accepted-share display, bankroll persistence, game history, audio, animations and production packaging are not complete. Do not treat this alpha as production-ready.
+This is an experimental alpha and still needs successful Windows CI and hands-on testing of the Job Object CPU hard cap, pool connectivity, payout worker, mode switching and long-session stability. MSR and Large Pages controls, pool diagnostics, session hashrate / accepted-share display, bankroll persistence, game history, audio, animations and production packaging are not complete.
