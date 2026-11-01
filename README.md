@@ -22,6 +22,18 @@ JackMiner is an experimental Windows blackjack game where the house's CPU resour
 - The session runs as a child process supervised by `PenaltyProcessHost` using a Windows Job Object. The child has its own PID in Task Manager; closing JackMiner terminates the job and its child processes.
 - No Windows service, detached console, tray helper, extra launcher process or Tor integration is used.
 
+## First launch: how to play
+
+1. Accept the first-run notice. It does not start anything.
+2. Press **Download / Repair Required Files** and let JackMiner verify the official XMRig Windows x64 package.
+3. Choose Easy, Medium, Hard or Beta. These are CPU ceilings, not harmless visual difficulty settings.
+4. Press **Enter Table + Start Resource Session** and confirm the warning. The resource process starts as a supervised child process.
+5. In the right-hand **TABLE** tab, press **Unlock Table** and accept the separate table warning.
+6. Select chips, then press **DEAL**. Use Hit, Stand, Double or Split when those actions are available.
+7. Press **Stop Resource Session** to stop the workload. This locks the table again.
+
+The updater is manual. It checks the official release version when **Check for Updates** is pressed, and it only offers an install when the official version is numerically newer than the verified installed version. Matching versions do nothing; a newer installed version is never downgraded. The first-run prompts do not run the updater.
+
 ## Blackjack rules
 
 - €1,000 virtual starting bankroll, persisted locally between launches.

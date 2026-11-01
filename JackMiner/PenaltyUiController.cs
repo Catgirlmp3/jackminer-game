@@ -7,6 +7,7 @@ public partial class MainWindow
     private PenaltySettings _penaltySettings = new();
     private int _lastPenaltyTarget;
     private bool _penaltyTargetUpdatePending;
+    private bool _runtimeMaintenanceInProgress;
     private App Services => (App)Application.Current;
     private bool IsResourceSessionActive => Services.PenaltyHost.IsRunning;
 
@@ -16,7 +17,19 @@ public partial class MainWindow
         ResourceModeComboBox.SelectedValue = _penaltySettings.ResourceMode;
         Services.PenaltyHost.OutputReceived += PenaltyOutputReceived;
         Services.PenaltyHost.Exited += PenaltyProcessExited;
-        InitializeCasinoTabs();
+        try
+        {
+            InitializeCasinoTabs();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"JackMiner could not finish setting up the casino interface. The application will stay open so the error can be read, but gameplay is unavailable until this is fixed.\n\n{ex.Message}",
+                "JackMiner — Interface Setup Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
         if (!string.IsNullOrWhiteSpace(_economyStore.LastLoadWarning))
         {
             MessageBox.Show(
@@ -109,13 +122,14 @@ public partial class MainWindow
 
     private async void Setup_Click(object sender, RoutedEventArgs e)
     {
-        SetupButton.IsEnabled = false;
-        UpdateButton.IsEnabled = false;
+        if (_runtimeMaintenanceInProgress || IsResourceSessionActive) return;
+        _runtimeMaintenanceInProgress = true;
+        RefreshPenaltyControls();
         try
         {
             var version = await Services.PenaltySetup.InstallOrRepairAsync(
                 new Progress<string>(message => RuntimeDetailText.Text = message));
-            RuntimeDetailText.Text = $"Verified XMRig {version} installed. Entering the table will start the resource session.";
+            RuntimeDetailText.Text = $"Verified XMRig {version} installed. Choose a mode, then press ENTER TABLE + START RESOURCE SESSION.";
             MessageBox.Show($"The official Windows x64 package was verified and installed.\n\nVersion: {version}\n\nNo resource session has been started yet.",
                 "JackMiner — Setup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -125,40 +139,95 @@ public partial class MainWindow
             MessageBox.Show($"Required files could not be installed or verified. JackMiner does not bypass Windows security or restore quarantined files.\n\n{ex.Message}",
                 "JackMiner — Setup Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        finally { RefreshPenaltyControls(); }
+        finally
+        {
+            _runtimeMaintenanceInProgress = false;
+            RefreshPenaltyControls();
+        }
     }
 
     private async void Update_Click(object sender, RoutedEventArgs e)
     {
-        UpdateButton.IsEnabled = false;
+        if (_runtimeMaintenanceInProgress || IsResourceSessionActive) return;
+        _runtimeMaintenanceInProgress = true;
+        RefreshPenaltyControls();
         try
         {
             var latest = await Services.PenaltySetup.GetLatestVersionAsync();
             var installed = await Services.PenaltySetup.GetInstalledVersionAsync();
+
             if (installed is null)
-                MessageBox.Show($"Latest official release: {latest}\n\nNo verified runtime is installed. Use Download / Repair Required Files first.",
-                    "JackMiner — Update Check", MessageBoxButton.OK, MessageBoxImage.Information);
-            else if (string.Equals(installed, latest, StringComparison.OrdinalIgnoreCase))
-                MessageBox.Show($"Your runtime is up to date: {installed}.", "JackMiner — Update Check",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            else if (MessageBox.Show($"Installed: {installed}\nAvailable: {latest}\n\nDownload and verify the update now?",
-                         "JackMiner — Update Available", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                await Services.PenaltySetup.InstallOrRepairAsync(
-                    new Progress<string>(message => RuntimeDetailText.Text = message));
-                RuntimeDetailText.Text = $"Updated and verified to XMRig {latest}.";
+                MessageBox.Show(
+                    $"Latest official release: {latest}\n\nNo verified runtime is installed. Use Download / Repair Required Files first.",
+                    "JackMiner — Update Check",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
             }
+
+            var comparison = PenaltySetupService.CompareReleaseVersions(latest, installed);
+            if (comparison == 0)
+            {
+                MessageBox.Show(
+                    $"Your verified runtime is already up to date ({installed}). No files were changed.",
+                    "JackMiner — Update Check",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            if (comparison < 0)
+            {
+                MessageBox.Show(
+                    $"Installed version {installed} is newer than the latest official release {latest}. JackMiner will not downgrade it.",
+                    "JackMiner — Update Check",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var answer = MessageBox.Show(
+                $"A newer official release was detected.\n\nInstalled: {installed}\nAvailable: {latest}\n\nDownload and verify this update now?",
+                "JackMiner — Update Available",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (answer != MessageBoxResult.Yes)
+            {
+                RuntimeDetailText.Text = "Update cancelled. The installed runtime was not changed.";
+                return;
+            }
+
+            var updatedVersion = await Services.PenaltySetup.InstallOrRepairAsync(
+                new Progress<string>(message => RuntimeDetailText.Text = message));
+            if (!await Services.PenaltySetup.VerifyInstalledAsync())
+                throw new InvalidDataException("The downloaded release did not pass the installed-file integrity check.");
+            var verifiedVersion = await Services.PenaltySetup.GetInstalledVersionAsync() ?? updatedVersion;
+            if (PenaltySetupService.CompareReleaseVersions(verifiedVersion, latest) < 0)
+                throw new InvalidDataException($"The installed version ({verifiedVersion}) is still older than the detected release ({latest}).");
+
+            RuntimeDetailText.Text = $"Updated and verified to XMRig {verifiedVersion}.";
+            MessageBox.Show(
+                $"The newer release was installed and verified.\n\nVersion: {verifiedVersion}",
+                "JackMiner — Update Complete",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Update check failed.\n\n{ex.Message}", "JackMiner — Update Check Failed",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        finally { RefreshPenaltyControls(); }
+        finally
+        {
+            _runtimeMaintenanceInProgress = false;
+            RefreshPenaltyControls();
+        }
     }
 
     private async void StartMining_Click(object sender, RoutedEventArgs e)
     {
+        if (_runtimeMaintenanceInProgress || IsResourceSessionActive) return;
         SavePenaltySettings();
         if (!await Services.PenaltySetup.VerifyInstalledAsync())
         {
@@ -180,8 +249,8 @@ public partial class MainWindow
         {
             await Services.PenaltyRuntime.StartAsync(Services.PenaltySetup.ExecutablePath, target);
             _lastPenaltyTarget = target;
-            MinerStatusText.Text = "TABLE OPEN • RESOURCE SESSION ACTIVE";
-            RuntimeDetailText.Text = $"Active. Windows CPU hard cap: {target}% (mode maximum {maximum}%).";
+            MinerStatusText.Text = "RESOURCE SESSION ACTIVE • TABLE LOCKED";
+            RuntimeDetailText.Text = $"Active. Windows CPU hard cap: {target}% (mode maximum {maximum}%). Open the TABLE tab and press UNLOCK TABLE to start playing.";
         }
         catch (Exception ex)
         {
@@ -228,12 +297,15 @@ public partial class MainWindow
     private void RefreshPenaltyControls()
     {
         var running = IsResourceSessionActive;
-        StartMiningButton.IsEnabled = !running;
+        var busy = _runtimeMaintenanceInProgress;
+        StartMiningButton.IsEnabled = !running && !busy;
         StopMiningButton.IsEnabled = running;
-        SetupButton.IsEnabled = !running;
-        UpdateButton.IsEnabled = !running;
-        ResourceModeComboBox.IsEnabled = !running;
-        MinerStatusText.Text = running ? "RESOURCE SESSION ACTIVE • TABLE LOCKED" : "TABLE LOCKED • RESOURCE SESSION OFFLINE";
+        SetupButton.IsEnabled = !running && !busy;
+        UpdateButton.IsEnabled = !running && !busy;
+        ResourceModeComboBox.IsEnabled = !running && !busy;
+        MinerStatusText.Text = running
+            ? (_tableUnlockedThisSession ? "RESOURCE SESSION ACTIVE • TABLE UNLOCKED" : "RESOURCE SESSION ACTIVE • TABLE LOCKED")
+            : "TABLE LOCKED • RESOURCE SESSION OFFLINE";
         if (_unlockTableButton is not null)
         {
             _unlockTableButton.IsEnabled = running && !_tableUnlockedThisSession;

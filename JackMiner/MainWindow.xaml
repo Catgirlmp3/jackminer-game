@@ -25,7 +25,7 @@
                 <ColumnDefinition Width="350"/>
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Background="#142820" BorderBrush="#315444" BorderThickness="1" CornerRadius="20" Padding="22" Margin="0,0,18,0">
-                <Grid>
+                <Grid x:Name="FeltGrid">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -46,8 +46,8 @@
                     <TextBlock Grid.Row="4" Text="BLACKJACK PAYS 3:2     •     DEALER STANDS ON SOFT 17" Foreground="#9BB4A5" FontSize="10" HorizontalAlignment="Center" Margin="0,12,0,0"/>
                 </Grid>
             </Border>
-            <Border Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="#302B3D" BorderThickness="1" CornerRadius="18" Padding="14">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <Border x:Name="CasinoSidePanel" Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="#302B3D" BorderThickness="1" CornerRadius="18" Padding="14">
+                <ScrollViewer x:Name="CasinoTableScroll" VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <TextBlock Text="TABLE CONTROLS" Foreground="{StaticResource Pink}" FontSize="12" FontWeight="Bold" Margin="4,2,4,12"/>
                         <TextBlock Text="SELECT YOUR BET" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
@@ -66,7 +66,7 @@
                         <Separator Background="#383144" Margin="0,14,0,12"/>
                         <TextBlock Text="ROUND RESULT" Foreground="{StaticResource Muted}" FontSize="10" Margin="4,0,0,4"/>
                         <TextBlock x:Name="ResultText" Text="Ready when you are." TextWrapping="Wrap" FontSize="13" Margin="4,2,4,10"/>
-                        <Button Content="CLEAR BET" Click="Reset_Click" Background="#292533"/>
+                        <Button x:Name="ClearBetButton" Content="CLEAR BET" Click="Reset_Click" Background="#292533"/>
                         <Separator Background="#383144" Margin="0,14,0,12"/>
                         <TextBlock Text="THE RESOURCE TAX" Foreground="{StaticResource Pink}" FontSize="12" FontWeight="Bold" Margin="4,0,4,5"/>
                         <TextBlock Text="BANKROLL-BASED CPU LIMIT" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,0,3"/>
@@ -122,6 +122,10 @@
                     </Border>
                     <TextBlock Text="No real-money gambling. No deposits. No withdrawals. The resource workload is real and visible. If you continue, you accept that gameplay requires CPU usage and that this is experimental beta software."
                                Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                    <Border Background="#24202E" CornerRadius="9" Padding="12" Margin="0,0,0,14">
+                        <TextBlock Text="HOW TO START: acknowledge this notice → download / repair the verified runtime → choose a resource mode → press ENTER TABLE + START RESOURCE SESSION and confirm → open the TABLE tab on the right and press UNLOCK TABLE → choose chips and press DEAL. Hit, Stand, Double and Split become available during a hand."
+                                   Foreground="#E9DDF1" FontSize="12" TextWrapping="Wrap"/>
+                    </Border>
                     <Button Content="I UNDERSTAND — LET ME INTO THE PIT" Click="AcceptFirstRun_Click"
                             Background="#87416D" Height="46" Margin="0,0,0,5"/>
                     <Button Content="NOPE. GET ME OUT." Click="DeclineFirstRun_Click" Background="#292533" Height="38"/>

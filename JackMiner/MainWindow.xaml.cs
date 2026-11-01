@@ -56,7 +56,7 @@ public partial class MainWindow : Window
             };
             button.Click += (_, _) =>
             {
-                if (_game.RoundInProgress) return;
+                if (!CanUseTable || _game.RoundInProgress) return;
                 if (_selectedWager + amount > 300 || _selectedWager + amount > _game.Balance)
                 {
                     TableStatus.Text = "Maximum wager is €300 and cannot exceed your balance.";
@@ -86,14 +86,14 @@ public partial class MainWindow : Window
         RefreshTable();
     }
 
-    private void Hit_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Hit(); RefreshTable(); }
-    private void Stand_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Stand(); RefreshTable(); }
-    private void Double_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.DoubleDown(); RefreshTable(); }
-    private void Split_Click(object sender, RoutedEventArgs e) { if (!IsResourceSessionActive) return; _game.Split(); RefreshTable(); }
+    private void Hit_Click(object sender, RoutedEventArgs e) { if (!CanUseTable) return; _game.Hit(); RefreshTable(); }
+    private void Stand_Click(object sender, RoutedEventArgs e) { if (!CanUseTable) return; _game.Stand(); RefreshTable(); }
+    private void Double_Click(object sender, RoutedEventArgs e) { if (!CanUseTable) return; _game.DoubleDown(); RefreshTable(); }
+    private void Split_Click(object sender, RoutedEventArgs e) { if (!CanUseTable) return; _game.Split(); RefreshTable(); }
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        if (!IsResourceSessionActive) return;
+        if (!CanUseTable) return;
         if (_game.RoundInProgress)
         {
             TableStatus.Text = "Finish the current round before clearing your bet.";
@@ -159,6 +159,7 @@ public partial class MainWindow : Window
         DoubleButton.IsEnabled = tableOpen && _game.CanDouble;
         SplitButton.IsEnabled = tableOpen && _game.CanSplit;
         DealButton.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager > 0 && _selectedWager <= _game.Balance;
+        ClearBetButton.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager > 0;
         foreach (Button chip in ChipPanel.Children)
             chip.IsEnabled = tableOpen && !_game.RoundInProgress && _selectedWager < 300 && _selectedWager < _game.Balance;
 

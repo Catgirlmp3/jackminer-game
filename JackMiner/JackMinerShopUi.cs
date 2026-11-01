@@ -11,6 +11,8 @@ public partial class MainWindow
     private JackMinerEconomyState _economyState = new();
     private bool _tableUnlockedThisSession;
     private bool _economyInitialized;
+    private bool _casinoTabsInitialized;
+    private bool _saveWarningShown;
     private readonly DispatcherTimer _giveawayTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private Border? _giveawayPopup;
     private Button? _unlockTableButton;
@@ -24,28 +26,49 @@ public partial class MainWindow
 
     private void InitializeCasinoTabs()
     {
+        if (_casinoTabsInitialized) return;
+
         _economyState = _economyStore.Load();
         _game.RestoreBalance(_economyState.Balance);
         _economyInitialized = true;
 
-        var sidePanel = FindVisualChild<Border>(this, b => b.Child is ScrollViewer);
-        if (sidePanel?.Child is not ScrollViewer tableScroll || tableScroll.Content is not StackPanel tableContent)
-            return;
+        if (CasinoTableScroll.Content is not StackPanel tableContent)
+            throw new InvalidOperationException("The TABLE controls could not be initialized because their scroll panel is missing.");
 
-        tableScroll.Content = null;
-        var feltBorder = FindVisualChild<Border>(this, b => b.Child is Grid && Grid.GetColumn(b) == 0);
-        if (feltBorder?.Child is Grid feltGrid)
+        var lockContent = new StackPanel
         {
-            var lockContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Width = 320 };
-            lockContent.Children.Add(new TextBlock { Text = "TABLE LOCKED", Foreground = Brushes.White, FontSize = 24, FontWeight = FontWeights.Black, HorizontalAlignment = HorizontalAlignment.Center });
-            lockContent.Children.Add(new TextBlock { Text = "The house is not ready for you. Start a resource session, then unlock the table from the TABLE tab.", Foreground = new SolidColorBrush(Color.FromRgb(224, 210, 230)), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 8, 0, 0) });
-            _tableLockOverlay = new Border { Background = new SolidColorBrush(Color.FromArgb(225, 8, 10, 13)), CornerRadius = new CornerRadius(16), Padding = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Child = lockContent };
-            Grid.SetRowSpan(_tableLockOverlay, 5);
-            Panel.SetZIndex(_tableLockOverlay, 100);
-            feltGrid.Children.Add(_tableLockOverlay);
-        }
-        var tabs = new TabControl { Background = new SolidColorBrush(Color.FromRgb(28, 24, 37)), BorderThickness = new Thickness(0) };
-        tabs.Items.Add(new TabItem { Header = "TABLE", Content = tableScroll });
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = 360
+        };
+        lockContent.Children.Add(new TextBlock
+        {
+            Text = "TABLE LOCKED",
+            Foreground = Brushes.White,
+            FontSize = 24,
+            FontWeight = FontWeights.Black,
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        lockContent.Children.Add(new TextBlock
+        {
+            Text = "To play: install or repair the verified runtime, choose a resource mode, then press ENTER TABLE + START RESOURCE SESSION. Once it is running, open the TABLE tab and press UNLOCK TABLE. You can then choose chips and deal a hand.",
+            Foreground = new SolidColorBrush(Color.FromRgb(224, 210, 230)),
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 0)
+        });
+        _tableLockOverlay = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(225, 8, 10, 13)),
+            CornerRadius = new CornerRadius(16),
+            Padding = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Child = lockContent
+        };
+        Grid.SetRowSpan(_tableLockOverlay, Math.Max(1, FeltGrid.RowDefinitions.Count));
+        Panel.SetZIndex(_tableLockOverlay, 100);
+        FeltGrid.Children.Add(_tableLockOverlay);
 
         _unlockTableButton = new Button
         {
@@ -60,22 +83,80 @@ public partial class MainWindow
         _unlockTableButton.Click += UnlockTable_Click;
         tableContent.Children.Insert(0, _unlockTableButton);
 
+        // Detach the existing ScrollViewer from its Border before moving it into a TabItem.
+        // Keep its StackPanel content intact; clearing that content made every table control vanish.
+        CasinoSidePanel.Child = null;
+
+        var tabs = new TabControl
+        {
+            Background = new SolidColorBrush(Color.FromRgb(28, 24, 37)),
+            BorderThickness = new Thickness(0)
+        };
+        tabs.Items.Add(new TabItem { Header = "TABLE", Content = CasinoTableScroll });
+
         _shopPanel = new StackPanel { Margin = new Thickness(8) };
-        _shopPanel.Children.Add(new TextBlock { Text = "THE OBJECTS DEPARTMENT", Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 4, 0, 4) });
-        _shopPanel.Children.Add(new TextBlock { Text = "Acquire things of questionable significance. Every purchase is permanent; their purpose will be revealed later.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
-        tabs.Items.Add(new TabItem { Header = "ODDITIES SHOP", Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = _shopPanel } });
+        _shopPanel.Children.Add(new TextBlock
+        {
+            Text = "THE OBJECTS DEPARTMENT",
+            Foreground = Brushes.White,
+            FontSize = 17,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 4, 0, 4)
+        });
+        _shopPanel.Children.Add(new TextBlock
+        {
+            Text = "Acquire things of questionable significance. Every purchase is permanent; their purpose will be revealed later.",
+            Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12)
+        });
+        tabs.Items.Add(new TabItem
+        {
+            Header = "ODDITIES SHOP",
+            Content = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Content = _shopPanel
+            }
+        });
 
         var rewards = new StackPanel { Margin = new Thickness(12) };
-        rewards.Children.Add(new TextBlock { Text = "THE HOUSE REMEMBERS", Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.Bold });
-        _giveawayCountdown = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(194, 178, 211)), Margin = new Thickness(0, 8, 0, 12), TextWrapping = TextWrapping.Wrap };
+        rewards.Children.Add(new TextBlock
+        {
+            Text = "THE HOUSE REMEMBERS",
+            Foreground = Brushes.White,
+            FontSize = 17,
+            FontWeight = FontWeights.Bold
+        });
+        _giveawayCountdown = new TextBlock
+        {
+            Foreground = new SolidColorBrush(Color.FromRgb(194, 178, 211)),
+            Margin = new Thickness(0, 8, 0, 12),
+            TextWrapping = TextWrapping.Wrap
+        };
         rewards.Children.Add(_giveawayCountdown);
-        _claimGiveawayButton = new Button { Content = "CLAIM HOUSE DROP  •  €25", Height = 42, Background = new SolidColorBrush(Color.FromRgb(120, 71, 166)), Foreground = Brushes.White, IsEnabled = false };
+        _claimGiveawayButton = new Button
+        {
+            Content = "CLAIM HOUSE DROP  •  €25",
+            Height = 42,
+            Background = new SolidColorBrush(Color.FromRgb(120, 71, 166)),
+            Foreground = Brushes.White,
+            IsEnabled = false
+        };
         _claimGiveawayButton.Click += ClaimGiveaway_Click;
         rewards.Children.Add(_claimGiveawayButton);
-        rewards.Children.Add(new TextBlock { Text = "A drop becomes available every 15 minutes. You must claim it yourself; missed drops do not stack.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
+        rewards.Children.Add(new TextBlock
+        {
+            Text = "A drop becomes available every 15 minutes. You must claim it yourself; missed drops do not stack.",
+            Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 10, 0, 0)
+        });
         tabs.Items.Add(new TabItem { Header = "HOUSE DROPS", Content = rewards });
 
-        sidePanel.Child = tabs;
+        CasinoSidePanel.Child = tabs;
+        _casinoTabsInitialized = true;
+
         BuildShop();
         BuildGiveawayPopup();
         _giveawayTimer.Tick += (_, _) => RefreshGiveawayUi();
@@ -83,18 +164,6 @@ public partial class MainWindow
         RefreshInventory();
         RefreshGiveawayUi();
         PersistEconomy();
-    }
-
-    private static T? FindVisualChild<T>(DependencyObject parent, Func<T, bool> predicate) where T : DependencyObject
-    {
-        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T match && predicate(match)) return match;
-            var nested = FindVisualChild(child, predicate);
-            if (nested is not null) return nested;
-        }
-        return null;
     }
 
     private void UnlockTable_Click(object sender, RoutedEventArgs e)
@@ -237,8 +306,24 @@ public partial class MainWindow
 
     private void PersistEconomy()
     {
+        if (!_economyInitialized) return;
         _economyState.Balance = _game.Balance;
-        _economyStore.Save(_economyState);
+        try
+        {
+            _economyStore.Save(_economyState);
+            _saveWarningShown = false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (_saveWarningShown) return;
+            _saveWarningShown = true;
+            TableStatus.Text = "Save unavailable — this session's changes may not persist.";
+            MessageBox.Show(
+                $"JackMiner could not save your bankroll or collection. You can keep playing in this session, but changes may be lost when the game closes.\n\n{ex.Message}",
+                "JackMiner — Save Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void UpdateTableLockOverlay()

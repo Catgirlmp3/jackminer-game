@@ -47,8 +47,9 @@ public sealed class PenaltySetupService
         using var release = await JsonDocument.ParseAsync(apiStream, cancellationToken: cancellationToken);
 
         var root = release.RootElement;
-        var version = root.GetProperty("version").GetString()
+        var version = root.GetProperty("version").GetString()?.Trim()
             ?? throw new InvalidDataException("The release API did not provide a version.");
+        _ = ParseReleaseVersion(version);
         var assets = root.GetProperty("assets");
         var asset = assets.EnumerateArray().FirstOrDefault(x =>
             string.Equals(x.GetProperty("os").GetString(), "windows-x64", StringComparison.OrdinalIgnoreCase));
@@ -164,8 +165,39 @@ public sealed class PenaltySetupService
         using var response = await Http.GetAsync(ReleaseApi, cancellationToken);
         response.EnsureSuccessStatusCode();
         using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-        return document.RootElement.GetProperty("version").GetString()
+        var version = document.RootElement.GetProperty("version").GetString()?.Trim()
             ?? throw new InvalidDataException("The official release service did not return a version.");
+        _ = ParseReleaseVersion(version);
+        return version;
+    }
+
+    /// <summary>
+    /// Returns positive when candidate is newer, zero when equal, and negative when older.
+    /// Parsing numeric components avoids updates caused only by a prefix or formatting difference.
+    /// </summary>
+    public static int CompareReleaseVersions(string candidate, string installed)
+    {
+        return ParseReleaseVersion(candidate).CompareTo(ParseReleaseVersion(installed));
+    }
+
+    private static Version ParseReleaseVersion(string value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized[1..];
+
+        var parts = normalized.Split('.');
+        if (parts.Length is < 2 or > 4)
+            throw new InvalidDataException($"Unrecognised XMRig release version: '{value}'.");
+
+        var components = new int[4];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!int.TryParse(parts[i], out components[i]) || components[i] < 0)
+                throw new InvalidDataException($"Unrecognised XMRig release version: '{value}'.");
+        }
+
+        return new Version(components[0], components[1], components[2], components[3]);
     }
 
     public async Task<string?> GetInstalledVersionAsync(CancellationToken cancellationToken = default)
