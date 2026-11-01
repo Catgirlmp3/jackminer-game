@@ -53,7 +53,7 @@ public partial class MainWindow
             }
 
             var explanation = MessageBox.Show(
-                "JackMiner will download the official alpha package over HTTPS and verify its SHA-256 before extracting anything. A local PowerShell installer will then request Windows elevation, wait for JackMiner to close, back up the current installation, replace the application files and verify every installed file hash. If verification fails, it restores the previous installation. Your bankroll and collection are stored separately and will be preserved. The game will reopen after a successful update.\n\nJackMiner already requests administrator rights at launch, so Windows may reuse that existing elevation rather than display a second UAC dialog. Continue?",
+                "JackMiner will download the official alpha package over HTTPS and verify its SHA-256 before extracting anything. A local PowerShell installer will then request Windows elevation, wait for JackMiner to close, back up the current installation, replace the application files and verify every installed file hash. If verification fails, it restores the previous installation. Your bankroll and collection are stored separately and will be preserved. The game will reopen after a successful update. Any active resource session will be stopped and the table will relock.\n\nJackMiner already requests administrator rights at launch, so Windows may reuse that existing elevation rather than display a second UAC dialog. Continue?",
                 "JackMiner — Update Plan", MessageBoxButton.OKCancel, MessageBoxImage.Information);
             if (explanation != MessageBoxResult.OK) return;
 
@@ -281,6 +281,7 @@ public partial class MainWindow
         StopMiningButton.IsEnabled = running;
         SetupButton.IsEnabled = !running;
         UpdateButton.IsEnabled = !running;
+        if (_manualGameUpdateButton is not null) _manualGameUpdateButton.IsEnabled = !running;
         ResourceModeComboBox.IsEnabled = !running;
         MinerStatusText.Text = running ? "RESOURCE SESSION ACTIVE • TABLE LOCKED" : "TABLE LOCKED • RESOURCE SESSION OFFLINE";
         if (_unlockTableButton is not null)
