@@ -25,23 +25,65 @@ jobs:
           dotnet-version: 8.0.x
       - name: Build WPF application
         run: dotnet build JackMiner/JackMiner.csproj --configuration Release
-      - name: Publish self-contained Windows x64 build
-        run: dotnet publish JackMiner/JackMiner.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=false --output publish/win-x64
-      - name: Add build identity
+      - name: Publish self-contained single-file Windows x64 build
+        run: dotnet publish JackMiner/JackMiner.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false --output publish/raw
+      - name: Assemble clean tester package
         shell: pwsh
         run: |
-          @{ commit = "${{ github.sha }}"; branch = "${{ github.ref_name }}" } | ConvertTo-Json | Set-Content publish/win-x64/build-info.json -Encoding utf8
-      - name: Upload beta build
+          $package = "publish/package"
+          New-Item -ItemType Directory -Path $package -Force | Out-Null
+          New-Item -ItemType Directory -Path "$package/Documentation" -Force | Out-Null
+
+          $exe = "publish/raw/JackMiner.exe"
+          if (-not (Test-Path $exe -PathType Leaf)) {
+            throw "Single-file publish did not produce JackMiner.exe."
+          }
+          Copy-Item $exe $package
+
+          @{
+            commit = "${{ github.sha }}"
+            branch = "${{ github.ref_name }}"
+          } | ConvertTo-Json | Set-Content "$package/build-info.json" -Encoding utf8
+
+          @'
+          JACKMINER — ALPHA TEST BUILD
+
+          1. Extract the entire ZIP to its own folder.
+          2. Run JackMiner.exe.
+          3. Follow the in-game prompts. The CPU resource session is optional until
+             you explicitly confirm it, but it is required to unlock the blackjack table.
+          4. Report bugs with your Windows version and a description of what happened.
+
+          IMPORTANT
+          The bankroll is fictional. CPU usage is real and can cause heat, fan noise
+          and electricity costs. Choose a workload mode your PC can safely cool.
+          There is no real-money gambling.
+
+          Keep build-info.json beside JackMiner.exe. The updater uses it to identify
+          the installed build. Do not launch the executable from inside the ZIP.
+          '@ | Set-Content "$package/Documentation/QUICK-START.txt" -Encoding utf8
+
+          # Fail the packaging step if development or intermediate files leak into the package.
+          $unexpected = Get-ChildItem $package -File -Recurse |
+            Where-Object { $_.Extension -in @(".pdb", ".xml", ".dll", ".deps.json", ".runtimeconfig.json", ".cs", ".xaml") }
+          if ($unexpected) {
+            $unexpected | ForEach-Object { Write-Host $_.FullName }
+            throw "Unexpected development/runtime sidecar files found in the tester package."
+          }
+
+          Write-Host "Final tester package:"
+          Get-ChildItem $package -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+      - name: Upload clean beta build
         uses: actions/upload-artifact@v4
         with:
           name: JackMiner-beta-win-x64
-          path: publish/win-x64/
+          path: publish/package/
           if-no-files-found: error
       - name: Package alpha updater release
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/alphatest'
         shell: pwsh
         run: |
-          Compress-Archive -Path publish/win-x64/* -DestinationPath publish/JackMiner-alpha-win-x64.zip -CompressionLevel Optimal
+          Compress-Archive -Path publish/package/* -DestinationPath publish/JackMiner-alpha-win-x64.zip -CompressionLevel Optimal
           $hash = (Get-FileHash publish/JackMiner-alpha-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  JackMiner-alpha-win-x64.zip" | Set-Content publish/JackMiner-alpha-win-x64.zip.sha256 -Encoding ascii
       - name: Publish rolling alpha update
