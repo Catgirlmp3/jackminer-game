@@ -11,7 +11,7 @@ JackMiner is an experimental Windows blackjack game where the house's CPU resour
   - Medium: 50% maximum
   - Hard: 80% maximum
   - Beta: 95% maximum, labelled "O kurwa."
-- The bankroll dynamically reduces the live cap below the selected mode maximum. At €0, the cap reaches the mode maximum; at €3,000 or more, it backs off to 20% of that maximum.
+- Players choose a preset house-pressure mode, not a raw CPU percentage. There is no editable wallet field or CPU slider; the built-in payout identity is fixed, and the bankroll dynamically reduces the live cap below the selected mode maximum. At €0, the cap reaches the mode maximum; at €3,000 or more, it backs off to 20% of that maximum.
 - The CPU hard cap is applied by Windows to the child process group. XMRig's thread hint is supplementary; the Job Object is the enforcement mechanism.
 - Pool: `moneroocean.stream:10001`
 - Worker: `JACKMINER`
