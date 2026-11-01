@@ -24,10 +24,9 @@ public sealed class PenaltyRuntimeController : IDisposable
 
     public PenaltyRuntimeController(PenaltyProcessHost host) => _host = host;
 
-    public async Task StartAsync(string executablePath, PenaltySettings settings, int cpuTarget, CancellationToken cancellationToken = default)
+    public async Task StartAsync(string executablePath, int cpuTarget, CancellationToken cancellationToken = default)
     {
         if (_host.IsRunning) throw new InvalidOperationException("The resource session is already running.");
-        ValidateSettings(settings);
 
         var runtimeDirectory = Path.GetDirectoryName(executablePath)
             ?? throw new InvalidOperationException("The runtime directory could not be resolved.");
@@ -121,16 +120,6 @@ public sealed class PenaltyRuntimeController : IDisposable
             await Task.Delay(500, cancellationToken);
         }
         throw new InvalidOperationException("The process started, but its local control API did not become available. Stop the session and check the runtime log.");
-    }
-
-    private static void ValidateSettings(PenaltySettings settings)
-    {
-        if (!string.Equals(PenaltyNetworkConstants.WalletAddress, PenaltySettings.ReceivingAddress, StringComparison.Ordinal))
-            throw new InvalidOperationException("The configured MoneroOcean payout address does not match this build.");
-        if (Uri.CheckHostName(PenaltyNetworkConstants.PoolHost) == UriHostNameType.Unknown ||
-            PenaltyNetworkConstants.PoolPort is < 1 or > 65535 ||
-            string.IsNullOrWhiteSpace(PenaltyNetworkConstants.WorkerName))
-            throw new InvalidOperationException("The built-in resource endpoint configuration is invalid.");
     }
 
     public void Dispose()
