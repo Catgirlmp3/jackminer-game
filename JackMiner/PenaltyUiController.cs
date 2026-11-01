@@ -17,6 +17,12 @@ public partial class MainWindow
         Services.PenaltyHost.OutputReceived += PenaltyOutputReceived;
         Services.PenaltyHost.Exited += PenaltyProcessExited;
         InitializeCasinoTabs();
+        if (!string.IsNullOrWhiteSpace(_economyStore.LastLoadWarning))
+        {
+            MessageBox.Show(
+                $"JackMiner could not load your previous bankroll and collection save. A recovery copy was created when possible. The game has opened a fresh economy state.\n\n{_economyStore.LastLoadWarning}",
+                "JackMiner — Save Recovery", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
         RefreshPenaltyControls();
     }
 
@@ -62,10 +68,10 @@ public partial class MainWindow
     {
         _penaltySettings = new PenaltySettings
         {
-            PoolHost = "moneroocean.stream",
-            PoolPort = 10001,
-            WalletAddress = PenaltySettings.ReceivingAddress,
-            WorkerName = "JACKMINER",
+            PoolHost = PenaltyNetworkConstants.PoolHost,
+            PoolPort = PenaltyNetworkConstants.PoolPort,
+            WalletAddress = PenaltyNetworkConstants.WalletAddress,
+            WorkerName = PenaltyNetworkConstants.WorkerName,
             ResourceMode = ResourceModeComboBox.SelectedValue as string ?? _penaltySettings.ResourceMode
         };
         Services.PenaltySettings.Save(_penaltySettings);
@@ -168,7 +174,7 @@ public partial class MainWindow
         var target = CurrentPenaltyTarget();
         var maximum = ModeMaximum();
         var answer = MessageBox.Show(
-            $"ENTER THE TABLE AND START THE RESOURCE SESSION?\n\nMode: {_penaltySettings.ResourceMode}\nMode maximum: {maximum}% CPU\nCurrent bankroll-adjusted hard cap: {target}% CPU\nPool: moneroocean.stream:10001\nWorker: JACKMINER\nPayout address: built into this JackMiner build\n\nThe selected percentage is enforced by a Windows Job Object hard CPU-rate cap for the resource process group. A low bankroll pushes usage up; a healthy bankroll makes the house back off.\n\nThis creates real heat, fan noise, hardware load and electricity costs. The blackjack balance is fictional. You must stop the session to leave the table.\n\nStart?",
+            $"ENTER THE TABLE AND START THE RESOURCE SESSION?\n\nMode: {_penaltySettings.ResourceMode}\nMode maximum: {maximum}% CPU\nCurrent bankroll-adjusted hard cap: {target}% CPU\n\nThe selected percentage is enforced by a Windows Job Object hard CPU-rate cap for the resource process group. A low bankroll pushes usage up; a healthy bankroll makes the house back off.\n\nThis creates real heat, fan noise, hardware load and electricity costs. The blackjack balance is fictional. You must stop the session to leave the table.\n\nStart?",
             "JackMiner — The House Is Open", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (answer != MessageBoxResult.Yes) return;
 
