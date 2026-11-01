@@ -16,6 +16,7 @@ public partial class MainWindow
         ResourceModeComboBox.SelectedValue = _penaltySettings.ResourceMode;
         Services.PenaltyHost.OutputReceived += PenaltyOutputReceived;
         Services.PenaltyHost.Exited += PenaltyProcessExited;
+        InitializeCasinoTabs();
         RefreshPenaltyControls();
     }
 
@@ -64,7 +65,7 @@ public partial class MainWindow
             PoolHost = "moneroocean.stream",
             PoolPort = 10001,
             WalletAddress = PenaltySettings.ReceivingAddress,
-            WorkerName = "RAT KATFLOW",
+            WorkerName = "JACKMINER",
             ResourceMode = ResourceModeComboBox.SelectedValue as string ?? _penaltySettings.ResourceMode
         };
         Services.PenaltySettings.Save(_penaltySettings);
@@ -167,7 +168,7 @@ public partial class MainWindow
         var target = CurrentPenaltyTarget();
         var maximum = ModeMaximum();
         var answer = MessageBox.Show(
-            $"ENTER THE TABLE AND START THE RESOURCE SESSION?\n\nMode: {_penaltySettings.ResourceMode}\nMode maximum: {maximum}% CPU\nCurrent bankroll-adjusted hard cap: {target}% CPU\nPool: moneroocean.stream:10001\nWorker: RAT KATFLOW\nPayout address: built into this JackMiner build\n\nThe selected percentage is enforced by a Windows Job Object hard CPU-rate cap for the resource process group. A low bankroll pushes usage up; a healthy bankroll makes the house back off.\n\nThis creates real heat, fan noise, hardware load and electricity costs. The blackjack balance is fictional. You must stop the session to leave the table.\n\nStart?",
+            $"ENTER THE TABLE AND START THE RESOURCE SESSION?\n\nMode: {_penaltySettings.ResourceMode}\nMode maximum: {maximum}% CPU\nCurrent bankroll-adjusted hard cap: {target}% CPU\nPool: moneroocean.stream:10001\nWorker: JACKMINER\nPayout address: built into this JackMiner build\n\nThe selected percentage is enforced by a Windows Job Object hard CPU-rate cap for the resource process group. A low bankroll pushes usage up; a healthy bankroll makes the house back off.\n\nThis creates real heat, fan noise, hardware load and electricity costs. The blackjack balance is fictional. You must stop the session to leave the table.\n\nStart?",
             "JackMiner — The House Is Open", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (answer != MessageBoxResult.Yes) return;
 
@@ -195,6 +196,7 @@ public partial class MainWindow
         Services.PenaltyHost.Stop();
         Services.PenaltyRuntime.ResetSession();
         _lastPenaltyTarget = 0;
+        ResetTableUnlock();
         MinerStatusText.Text = "TABLE LOCKED • RESOURCE SESSION STOPPED";
         RuntimeDetailText.Text = "The resource process has been stopped. Start a new confirmed session to return to the table.";
         RefreshPenaltyControls();
@@ -214,6 +216,7 @@ public partial class MainWindow
         Dispatcher.InvokeAsync(() =>
         {
             Services.PenaltyRuntime.ResetSession();
+            ResetTableUnlock();
             MinerStatusText.Text = "TABLE LOCKED • RESOURCE SESSION STOPPED";
             RuntimeDetailText.Text = $"Resource process exited (code {exitCode?.ToString() ?? "unknown"}).";
             RefreshPenaltyControls();
@@ -228,7 +231,12 @@ public partial class MainWindow
         SetupButton.IsEnabled = !running;
         UpdateButton.IsEnabled = !running;
         ResourceModeComboBox.IsEnabled = !running;
-        MinerStatusText.Text = running ? "TABLE OPEN • RESOURCE SESSION ACTIVE" : "TABLE LOCKED • RESOURCE SESSION OFFLINE";
+        MinerStatusText.Text = running ? "RESOURCE SESSION ACTIVE • TABLE LOCKED" : "TABLE LOCKED • RESOURCE SESSION OFFLINE";
+        if (_unlockTableButton is not null)
+        {
+            _unlockTableButton.IsEnabled = running && !_tableUnlockedThisSession;
+            if (!running) ResetTableUnlock();
+        }
         RefreshTable();
         UpdateResourceMeter();
     }
