@@ -71,7 +71,7 @@ public partial class MainWindow : Window
 
     private void Deal_Click(object sender, RoutedEventArgs e)
     {
-        if (!IsResourceSessionActive) return;
+        if (!CanUseTable) return;
         if (_selectedWager <= 0)
         {
             TableStatus.Text = "Choose at least one chip first.";
@@ -107,7 +107,7 @@ public partial class MainWindow : Window
     {
         BalanceText.Text = _game.Balance.ToString("C2", CultureInfo.GetCultureInfo("en-IE"));
         WagerText.Text = _selectedWager.ToString("C0", CultureInfo.GetCultureInfo("en-IE"));
-        TableStatus.Text = IsResourceSessionActive ? _game.Status : "The table is closed. Start a confirmed resource session to play.";
+        TableStatus.Text = CanUseTable ? _game.Status : IsResourceSessionActive ? "The resource session is active. Unlock the table to begin." : "The table is closed. Start a confirmed resource session to play.";
         ResultText.Text = _game.RoundInProgress ? "Round in progress." :
             _game.LastNet > 0 ? $"You won {_game.LastNet:C2} this round." :
             _game.LastNet < 0 ? $"You lost {Math.Abs(_game.LastNet):C2} this round." : "Ready for the next hand.";
@@ -153,7 +153,7 @@ public partial class MainWindow : Window
             }
         }
 
-        var tableOpen = IsResourceSessionActive;
+        var tableOpen = CanUseTable;
         HitButton.IsEnabled = tableOpen && _game.CanHit;
         StandButton.IsEnabled = tableOpen && _game.CanStand;
         DoubleButton.IsEnabled = tableOpen && _game.CanDouble;
