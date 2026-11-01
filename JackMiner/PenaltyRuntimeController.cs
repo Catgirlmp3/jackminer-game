@@ -24,14 +24,21 @@ public sealed class PenaltyRuntimeController : IDisposable
 
     public PenaltyRuntimeController(PenaltyProcessHost host) => _host = host;
 
-    public async Task StartAsync(string executablePath, int cpuTarget, CancellationToken cancellationToken = default)
+    public async Task<MinerRuntimeStatus> StartAsync(
+        string executablePath,
+        int cpuTarget,
+        IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         if (_host.IsRunning) throw new InvalidOperationException("The resource session is already running.");
 
         var runtimeDirectory = Path.GetDirectoryName(executablePath)
             ?? throw new InvalidOperationException("The runtime directory could not be resolved.");
         var configPath = Path.Combine(runtimeDirectory, "session-config.json");
+        var logPath = Path.Combine(runtimeDirectory, "session.log");
         var port = GetAvailableLoopbackPort();
+        var poolPort = PenaltyNetworkConstants.SelectPoolPort(cpuTarget);
+        progress?.Report($"Preparing XMRig for {PenaltyNetworkConstants.PoolHost}:{poolPort}...");
         _apiToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         _apiEndpoint = new Uri($"http://{PenaltyNetworkConstants.LoopbackAddress}:{port}/");
         _api.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
@@ -40,6 +47,7 @@ public sealed class PenaltyRuntimeController : IDisposable
         {
             ["autosave"] = false,
             ["donate-level"] = 1,
+            ["log-file"] = logPath,
             ["cpu"] = new JsonObject
             {
                 ["enabled"] = true,
@@ -52,7 +60,7 @@ public sealed class PenaltyRuntimeController : IDisposable
             {
                 new JsonObject
                 {
-                    ["url"] = $"{PenaltyNetworkConstants.PoolHost}:{PenaltyNetworkConstants.PoolPort}",
+                    ["url"] = $"{PenaltyNetworkConstants.PoolHost}:{poolPort}",
                     ["user"] = PenaltyNetworkConstants.WalletAddress,
                     ["pass"] = PenaltyNetworkConstants.WorkerName,
                     ["keepalive"] = true,
@@ -72,14 +80,143 @@ public sealed class PenaltyRuntimeController : IDisposable
         await File.WriteAllTextAsync(configPath, _activeConfiguration.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
         _host.StartVerified(executablePath, new[] { $"--config={configPath}", "--no-color" }, runtimeDirectory, cpuTarget);
 
-        // Give the local API a short window to bind. The miner can still continue
-        // running if the API is unavailable; the initial target is already in config.
-        try { await WaitForApiAsync(cancellationToken); }
+        try
+        {
+            progress?.Report("XMRig started. Checking its local status API...");
+            await WaitForApiAsync(cancellationToken);
+
+            // A live process and a responding API do not prove that a pool job
+            // was received. Require a real non-zero hashrate before declaring
+            // the resource session active or allowing the table to unlock.
+            progress?.Report($"Connected to XMRig. Waiting for pool work from {PenaltyNetworkConstants.PoolHost}:{poolPort}...");
+            return await WaitForHashrateAsync(TimeSpan.FromSeconds(90), progress, cancellationToken);
+        }
         catch
         {
             _host.Stop();
             ResetSession();
             throw;
+        }
+    }
+
+    public async Task<MinerRuntimeStatus> GetMiningStatusAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_host.IsRunning || _apiEndpoint is null)
+            throw new InvalidOperationException("The XMRig process is not running.");
+
+        using var response = await _api.GetAsync(new Uri(_apiEndpoint, "1/summary"), cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        return ParseMiningStatus(document.RootElement);
+    }
+
+    private async Task<MinerRuntimeStatus> WaitForHashrateAsync(
+        TimeSpan timeout,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        MinerRuntimeStatus? latest = null;
+        string? lastApiError = null;
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_host.IsRunning)
+                throw new InvalidOperationException("XMRig exited before it began hashing. Check the runtime session.log for the startup error.");
+
+            try
+            {
+                latest = await GetMiningStatusAsync(cancellationToken);
+                lastApiError = null;
+                if (latest.Hashrate > 0)
+                    return latest;
+
+                progress?.Report($"XMRig is running but has no hashrate yet. Algorithm: {latest.Algorithm}; pool: {latest.PoolStatus}.");
+            }
+            catch (Exception ex) when (
+                ex is HttpRequestException or JsonException or IOException &&
+                !cancellationToken.IsCancellationRequested)
+            {
+                lastApiError = ex.Message;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+
+        var detail = latest?.ToDisplayText() ?? lastApiError ?? "XMRig's summary API returned no status.";
+        throw new TimeoutException(
+            $"XMRig remained open but did not report any hashing after {timeout.TotalSeconds:0} seconds. " +
+            $"{detail} The table has been left locked. See the runtime log at " +
+            $"{Path.Combine(Path.GetDirectoryName(_apiEndpoint?.LocalPath) ?? string.Empty, "session.log")}.");
+    }
+
+    private static MinerRuntimeStatus ParseMiningStatus(JsonElement root)
+    {
+        var algorithm = ReadString(root, "algo", "algorithm pending");
+        var hashrate = 0d;
+        if (root.TryGetProperty("hashrate", out var hashrateElement) &&
+            hashrateElement.ValueKind == JsonValueKind.Object &&
+            hashrateElement.TryGetProperty("total", out var totals))
+        {
+            if (totals.ValueKind == JsonValueKind.Array && totals.GetArrayLength() > 0)
+                totals[0].TryGetDouble(out hashrate);
+            else if (totals.ValueKind == JsonValueKind.Number)
+                totals.TryGetDouble(out hashrate);
+        }
+
+        var pool = "not connected";
+        if (root.TryGetProperty("connection", out var connection) &&
+            connection.ValueKind == JsonValueKind.Object)
+        {
+            pool = ReadString(connection, "pool", pool);
+        }
+
+        long accepted = 0;
+        long submitted = 0;
+        if (root.TryGetProperty("results", out var results) &&
+            results.ValueKind == JsonValueKind.Object)
+        {
+            accepted = ReadInt64(results, "shares_good");
+            submitted = ReadInt64(results, "shares_total");
+        }
+
+        var errors = new List<string>();
+        AddErrorMessages(root, "connection", errors);
+        AddErrorMessages(root, "results", errors);
+        var lastError = errors.Count == 0 ? string.Empty : string.Join(" | ", errors.TakeLast(3));
+        return new MinerRuntimeStatus(algorithm, Math.Max(0, hashrate), pool, accepted, submitted, lastError);
+    }
+
+    private static string ReadString(JsonElement element, string property, string fallback)
+    {
+        return element.TryGetProperty(property, out var value) &&
+               value.ValueKind == JsonValueKind.String &&
+               !string.IsNullOrWhiteSpace(value.GetString())
+            ? value.GetString()!
+            : fallback;
+    }
+
+    private static long ReadInt64(JsonElement element, string property)
+    {
+        return element.TryGetProperty(property, out var value) && value.TryGetInt64()
+            ? value.GetInt64()
+            : 0;
+    }
+
+    private static void AddErrorMessages(JsonElement root, string section, List<string> errors)
+    {
+        if (!root.TryGetProperty(section, out var details) ||
+            details.ValueKind != JsonValueKind.Object ||
+            !details.TryGetProperty("error_log", out var log) ||
+            log.ValueKind != JsonValueKind.Array)
+            return;
+
+        foreach (var item in log.EnumerateArray())
+        {
+            var message = item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString();
+            if (!string.IsNullOrWhiteSpace(message)) errors.Add(message);
         }
     }
 
@@ -151,5 +288,24 @@ public sealed class PenaltyRuntimeController : IDisposable
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+}
+public sealed record MinerRuntimeStatus(
+    string Algorithm,
+    double Hashrate,
+    string PoolStatus,
+    long SharesAccepted,
+    long SharesSubmitted,
+    string LastError)
+{
+    public string ToDisplayText()
+    {
+        var rate = Hashrate >= 1_000_000
+            ? $"{Hashrate / 1_000_000d:0.00} MH/s"
+            : Hashrate >= 1_000
+                ? $"{Hashrate / 1_000d:0.00} kH/s"
+                : $"{Hashrate:0.00} H/s";
+        var status = $"{Algorithm} • {rate} • pool: {PoolStatus} • shares: {SharesAccepted}/{SharesSubmitted} accepted";
+        return string.IsNullOrWhiteSpace(LastError) ? status : $"{status} • pool error: {LastError}";
     }
 }

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace JackMiner;
 
@@ -9,6 +10,8 @@ public partial class MainWindow
     private int _lastPenaltyTarget;
     private bool _penaltyTargetUpdatePending;
     private bool _runtimeMaintenanceInProgress;
+    private readonly DispatcherTimer _minerStatusTimer = new() { Interval = TimeSpan.FromSeconds(3) };
+    private bool _minerStatusPollPending;
     private App Services => (App)Application.Current;
     private bool IsResourceSessionActive => Services.PenaltyHost.IsRunning;
 
@@ -18,6 +21,7 @@ public partial class MainWindow
         ResourceModeComboBox.SelectedValue = _penaltySettings.ResourceMode;
         Services.PenaltyHost.OutputReceived += PenaltyOutputReceived;
         Services.PenaltyHost.Exited += PenaltyProcessExited;
+        _minerStatusTimer.Tick += MinerStatusTimer_Tick;
         try
         {
             InitializeCasinoTabs();
@@ -111,6 +115,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
+            _minerStatusTimer.Stop();
             Services.PenaltyHost.Stop();
             Services.PenaltyRuntime.ResetSession();
             MinerStatusText.Text = "SESSION STOPPED — CONTROL LOST";
@@ -256,10 +261,13 @@ public partial class MainWindow
         RuntimeDetailText.Text = "Starting verified resource process and applying Windows CPU hard cap...";
         try
         {
-            await Services.PenaltyRuntime.StartAsync(Services.PenaltySetup.ExecutablePath, target);
+            var progress = new Progress<string>(message => RuntimeDetailText.Text = message);
+            var miningStatus = await Services.PenaltyRuntime.StartAsync(
+                Services.PenaltySetup.ExecutablePath, target, progress);
             _lastPenaltyTarget = target;
+            _minerStatusTimer.Start();
             MinerStatusText.Text = "RESOURCE SESSION ACTIVE • TABLE LOCKED";
-            RuntimeDetailText.Text = $"Active. Windows CPU hard cap: {target}% (mode maximum {maximum}%). Open the TABLE tab and press UNLOCK TABLE to start playing.";
+            RuntimeDetailText.Text = $"Hashing verified. Windows CPU hard cap: {target}% (mode maximum {maximum}%). {miningStatus.ToDisplayText()} Open the TABLE tab and press UNLOCK TABLE to start playing.";
         }
         catch (Exception ex)
         {
@@ -273,6 +281,7 @@ public partial class MainWindow
 
     private void StopMining_Click(object sender, RoutedEventArgs e)
     {
+        _minerStatusTimer.Stop();
         Services.PenaltyHost.Stop();
         Services.PenaltyRuntime.ResetSession();
         _lastPenaltyTarget = 0;
@@ -295,6 +304,7 @@ public partial class MainWindow
     {
         Dispatcher.InvokeAsync(() =>
         {
+            _minerStatusTimer.Stop();
             Services.PenaltyRuntime.ResetSession();
             ResetTableUnlock();
             MinerStatusText.Text = "TABLE LOCKED • RESOURCE SESSION STOPPED";
@@ -303,9 +313,30 @@ public partial class MainWindow
         });
     }
 
+    private async void MinerStatusTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_minerStatusPollPending || !IsResourceSessionActive) return;
+        _minerStatusPollPending = true;
+        try
+        {
+            var status = await Services.PenaltyRuntime.GetMiningStatusAsync();
+            RuntimeDetailText.Text = status.ToDisplayText();
+        }
+        catch (Exception ex)
+        {
+            if (IsResourceSessionActive)
+                RuntimeDetailText.Text = $"Miner status unavailable: {ex.Message}";
+        }
+        finally
+        {
+            _minerStatusPollPending = false;
+        }
+    }
+
     private void RefreshPenaltyControls()
     {
         var running = IsResourceSessionActive;
+        if (!running) _minerStatusTimer.Stop();
         var busy = _runtimeMaintenanceInProgress;
         StartMiningButton.IsEnabled = !running && !busy;
         StopMiningButton.IsEnabled = running;
