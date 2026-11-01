@@ -33,7 +33,7 @@ public sealed class PenaltyProcessHost : IDisposable
     /// Starts an executable that has already passed package and binary integrity checks.
     /// Every argument is supplied separately to avoid command-line quoting ambiguities.
     /// </summary>
-    public void StartVerified(string executablePath, IReadOnlyList<string> arguments, string workingDirectory)
+    public void StartVerified(string executablePath, IReadOnlyList<string> arguments, string workingDirectory, int cpuLimitPercent)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         lock (_sync)
@@ -59,6 +59,7 @@ public sealed class PenaltyProcessHost : IDisposable
                 startInfo.ArgumentList.Add(argument);
 
             var job = CreateKillOnCloseJob();
+            SetCpuRate(job, cpuLimitPercent);
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
             process.OutputDataReceived += (_, e) => { if (e.Data is not null) OutputReceived?.Invoke(e.Data); };
             process.ErrorDataReceived += (_, e) => { if (e.Data is not null) OutputReceived?.Invoke(e.Data); };
@@ -92,6 +93,37 @@ public sealed class PenaltyProcessHost : IDisposable
                 throw;
             }
         }
+    }
+
+    /// <summary>Applies a Windows Job Object hard CPU-rate cap to the complete child process group.</summary>
+    public void SetCpuLimit(int percentage)
+    {
+        lock (_sync)
+        {
+            if (_job is null || _job.IsInvalid || _job.IsClosed)
+                throw new InvalidOperationException("The resource process group is not active.");
+            SetCpuRate(_job, percentage);
+        }
+    }
+
+    private static void SetCpuRate(SafeJobHandle job, int percentage)
+    {
+        if (percentage is < 1 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(percentage), "CPU cap must be between 1% and 100%.");
+        var info = new JOBOBJECT_CPU_RATE_CONTROL_INFORMATION
+        {
+            ControlFlags = 0x00000001 | 0x00000004,
+            CpuRate = checked((uint)(percentage * 100))
+        };
+        var size = Marshal.SizeOf<JOBOBJECT_CPU_RATE_CONTROL_INFORMATION>();
+        var pointer = Marshal.AllocHGlobal(size);
+        try
+        {
+            Marshal.StructureToPtr(info, pointer, false);
+            if (!SetInformationJobObject(job, 15, pointer, (uint)size))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows could not apply the requested hard CPU cap.");
+        }
+        finally { Marshal.FreeHGlobal(pointer); }
     }
 
     public void Stop()
@@ -196,6 +228,13 @@ public sealed class PenaltyProcessHost : IDisposable
         public UIntPtr Affinity;
         public uint PriorityClass;
         public uint SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct JOBOBJECT_CPU_RATE_CONTROL_INFORMATION
+    {
+        public uint ControlFlags;
+        public uint CpuRate;
     }
 
     [StructLayout(LayoutKind.Sequential)]
