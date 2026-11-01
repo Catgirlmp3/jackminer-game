@@ -18,6 +18,7 @@ public partial class MainWindow
     private StackPanel? _inventoryPanel;
     private TextBlock? _giveawayCountdown;
     private Button? _claimGiveawayButton;
+    private Border? _tableLockOverlay;
 
     private bool CanUseTable => IsResourceSessionActive && _tableUnlockedThisSession;
 
@@ -32,6 +33,17 @@ public partial class MainWindow
             return;
 
         tableScroll.Content = null;
+        var feltBorder = FindVisualChild<Border>(this, b => b.Child is Grid && Grid.GetColumn(b) == 0);
+        if (feltBorder?.Child is Grid feltGrid)
+        {
+            var lockContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Width = 320 };
+            lockContent.Children.Add(new TextBlock { Text = "TABLE LOCKED", Foreground = Brushes.White, FontSize = 24, FontWeight = FontWeights.Black, HorizontalAlignment = HorizontalAlignment.Center });
+            lockContent.Children.Add(new TextBlock { Text = "The house is not ready for you. Start a resource session, then unlock the table from the TABLE tab.", Foreground = new SolidColorBrush(Color.FromRgb(224, 210, 230)), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 8, 0, 0) });
+            _tableLockOverlay = new Border { Background = new SolidColorBrush(Color.FromArgb(225, 8, 10, 13)), CornerRadius = new CornerRadius(16), Padding = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Child = lockContent };
+            Grid.SetRowSpan(_tableLockOverlay, 5);
+            Panel.SetZIndex(_tableLockOverlay, 100);
+            feltGrid.Children.Add(_tableLockOverlay);
+        }
         var tabs = new TabControl { Background = new SolidColorBrush(Color.FromRgb(28, 24, 37)), BorderThickness = new Thickness(0) };
         tabs.Items.Add(new TabItem { Header = "TABLE", Content = tableScroll });
 
@@ -95,6 +107,7 @@ public partial class MainWindow
             MessageBoxImage.Warning);
         if (answer != MessageBoxResult.Yes) return;
         _tableUnlockedThisSession = true;
+        UpdateTableLockOverlay();
         _unlockTableButton!.Content = "TABLE UNLOCKED — THE HOUSE IS WATCHING";
         _unlockTableButton.IsEnabled = false;
         RefreshTable();
@@ -228,6 +241,12 @@ public partial class MainWindow
         _economyStore.Save(_economyState);
     }
 
+    private void UpdateTableLockOverlay()
+    {
+        if (_tableLockOverlay is not null)
+            _tableLockOverlay.Visibility = CanUseTable ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private void ResetTableUnlock()
     {
         _tableUnlockedThisSession = false;
@@ -236,6 +255,7 @@ public partial class MainWindow
             _unlockTableButton.Content = "UNLOCK TABLE";
             _unlockTableButton.IsEnabled = IsResourceSessionActive;
         }
+        UpdateTableLockOverlay();
         RefreshTable();
     }
 }
