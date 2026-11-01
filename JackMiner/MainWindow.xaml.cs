@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -10,13 +11,36 @@ public partial class MainWindow : Window
     private readonly GameEngine _game = new();
     private decimal _selectedWager;
     private readonly decimal[] _chips = [5, 10, 25, 50, 75, 100, 200];
+    private readonly string _firstRunMarker = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "JackMiner", "first-run-acknowledged.txt");
 
     public MainWindow()
     {
         InitializeComponent();
+        FirstRunOverlay.Visibility = File.Exists(_firstRunMarker) ? Visibility.Collapsed : Visibility.Visible;
         BuildChips();
         RefreshTable();
     }
+
+    private void AcceptFirstRun_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_firstRunMarker)!);
+            File.WriteAllText(_firstRunMarker, $"Acknowledged {DateTimeOffset.UtcNow:O}");
+            FirstRunOverlay.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"JackMiner could not save the first-run acknowledgement. The warning will appear again next launch.\n\n{ex.Message}",
+                "JackMiner — Preference Not Saved", MessageBoxButton.OK, MessageBoxImage.Warning);
+            FirstRunOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void DeclineFirstRun_Click(object sender, RoutedEventArgs e) => Close();
 
     private void BuildChips()
     {
@@ -85,6 +109,12 @@ public partial class MainWindow : Window
         ResultText.Text = _game.RoundInProgress ? "Round in progress." :
             _game.LastNet > 0 ? $"You won {_game.LastNet:C2} this round." :
             _game.LastNet < 0 ? $"You lost {Math.Abs(_game.LastNet):C2} this round." : "Ready for the next hand.";
+
+        // Smooth preview curve: broke = 75% target, €3,000+ = 15% target.
+        // This is only a UI preview until the separately opt-in miner is implemented.
+        var targetLoad = Math.Clamp(75m - (_game.Balance / 3000m * 60m), 15m, 75m);
+        ResourceTargetBar.Value = (double)targetLoad;
+        ResourceTargetText.Text = $"{targetLoad:0}% TARGET • PREVIEW ONLY";
 
         DealerCards.Children.Clear();
         for (var i = 0; i < _game.Dealer.Cards.Count; i++)
