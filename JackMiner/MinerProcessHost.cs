@@ -189,7 +189,7 @@ public sealed class MinerProcessHost : IDisposable
 
     private sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
-        private SafeJobHandle() : base(ownsHandle: true) { }
+        public SafeJobHandle() : base(ownsHandle: true) { }
 
         [DllImport("kernel32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
