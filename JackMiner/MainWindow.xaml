@@ -87,7 +87,7 @@
                         <TextBox x:Name="PoolHostBox" Text="gulf.moneroocean.stream" Height="28" Padding="6" Background="#17141F" Foreground="White" BorderBrush="#51445F"/>
                         <TextBlock Text="WORKER NAME" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,7,4,3"/>
                         <TextBox x:Name="WorkerNameBox" Text="RAT KATFLOW" Height="28" Padding="6" Background="#17141F" Foreground="White" BorderBrush="#51445F"/>
-                        <CheckBox x:Name="MiningOptInCheckBox" Content="I explicitly opt in to CPU mining" Margin="4,10,4,6" Foreground="#F1D9E9"/>
+                        <CheckBox x:Name="MiningOptInCheckBox" Content="I explicitly opt in to CPU mining" Unchecked="MiningOptIn_Unchecked" Margin="4,10,4,6" Foreground="#F1D9E9"/>
                         <TextBlock Text="Mining uses real electricity and creates heat, fan noise and hardware load. The CPU target is a hint, not a guaranteed percentage." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="4,0,4,8"/>
                         <Button x:Name="SetupButton" Content="DOWNLOAD / REPAIR REQUIRED FILES" Click="Setup_Click" Background="#393044" Height="34" Margin="0,2,0,5"/>
                         <Button x:Name="UpdateButton" Content="CHECK FOR UPDATES" Click="Update_Click" Background="#292533" Height="30" Margin="0,0,0,7"/>
