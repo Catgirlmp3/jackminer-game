@@ -50,6 +50,7 @@ jobs:
             Automatically generated rolling alpha build.
 
             Build commit: ${{ github.sha }}
+          target_commitish: ${{ github.sha }}
           prerelease: true
           make_latest: false
           overwrite_files: true
