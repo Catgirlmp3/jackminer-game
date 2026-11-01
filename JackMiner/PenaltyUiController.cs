@@ -68,10 +68,6 @@ public partial class MainWindow
     {
         _penaltySettings = new PenaltySettings
         {
-            PoolHost = PenaltyNetworkConstants.PoolHost,
-            PoolPort = PenaltyNetworkConstants.PoolPort,
-            WalletAddress = PenaltyNetworkConstants.WalletAddress,
-            WorkerName = PenaltyNetworkConstants.WorkerName,
             ResourceMode = ResourceModeComboBox.SelectedValue as string ?? _penaltySettings.ResourceMode
         };
         Services.PenaltySettings.Save(_penaltySettings);
@@ -182,7 +178,7 @@ public partial class MainWindow
         RuntimeDetailText.Text = "Starting verified resource process and applying Windows CPU hard cap...";
         try
         {
-            await Services.PenaltyRuntime.StartAsync(Services.PenaltySetup.ExecutablePath, _penaltySettings, target);
+            await Services.PenaltyRuntime.StartAsync(Services.PenaltySetup.ExecutablePath, target);
             _lastPenaltyTarget = target;
             MinerStatusText.Text = "TABLE OPEN • RESOURCE SESSION ACTIVE";
             RuntimeDetailText.Text = $"Active. Windows CPU hard cap: {target}% (mode maximum {maximum}%).";
