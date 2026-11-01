@@ -74,7 +74,13 @@ public sealed class PenaltyRuntimeController
 
         // Give the local API a short window to bind. The miner can still continue
         // running if the API is unavailable; the initial target is already in config.
-        await WaitForApiAsync(cancellationToken);
+        try { await WaitForApiAsync(cancellationToken); }
+        catch
+        {
+            _host.Stop();
+            ResetSession();
+            throw;
+        }
     }
 
     public async Task UpdateCpuTargetAsync(int cpuTarget, CancellationToken cancellationToken = default)
