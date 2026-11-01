@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace JackMiner;
 
@@ -85,7 +86,7 @@ public sealed class JackMinerEconomyStore
         var directory = Path.GetDirectoryName(_path)!;
         Directory.CreateDirectory(directory);
         var temp = _path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(temp, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = new DefaultJsonTypeInfoResolver() }));
         File.Move(temp, _path, true);
     }
 }

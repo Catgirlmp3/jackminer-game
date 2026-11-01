@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace JackMiner;
 
@@ -190,7 +191,7 @@ public sealed class PenaltySetupService
                 executableHash, relativeExecutable, fileHashes);
             await File.WriteAllTextAsync(
                 Path.Combine(staging, "integrity.json"),
-                JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }),
+                JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = new DefaultJsonTypeInfoResolver() }),
                 cancellationToken);
 
             var backup = _installDirectory + ".previous";

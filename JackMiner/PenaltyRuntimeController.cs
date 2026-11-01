@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.Json.Nodes;
 
 namespace JackMiner;
@@ -84,7 +85,7 @@ public sealed class PenaltyRuntimeController : IDisposable
             }
         };
 
-        await File.WriteAllTextAsync(configPath, _activeConfiguration.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+        await File.WriteAllTextAsync(configPath, _activeConfiguration.ToJsonString(new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = new DefaultJsonTypeInfoResolver() }), cancellationToken);
         _host.StartVerified(executablePath, new[] { $"--config={configPath}", "--no-color" }, runtimeDirectory);
 
         try
