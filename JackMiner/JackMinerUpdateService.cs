@@ -56,8 +56,7 @@ public sealed class JackMinerUpdateService
 
     public async Task LaunchVerifiedUpdateAsync(UpdateInfo update, CancellationToken cancellationToken = default)
     {
-        var updateRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "JackMiner", "Updates", Guid.NewGuid().ToString("N"));
+        var updateRoot = Path.Combine(Path.GetTempPath(), "JackMinerUpdate", Guid.NewGuid().ToString("N"));
         var payload = Path.Combine(updateRoot, "payload");
         Directory.CreateDirectory(payload);
         try
