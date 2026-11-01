@@ -21,6 +21,12 @@ public partial class MainWindow
         RefreshPenaltyControls();
     }
 
+    private void MiningOptIn_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        SavePenaltySettings();
+    }
+
     private void SavePenaltySettings()
     {
         _penaltySettings = new PenaltySettings
