@@ -162,10 +162,26 @@ public sealed class PenaltyRuntimeController : IDisposable
             hashrateElement.ValueKind == JsonValueKind.Object &&
             hashrateElement.TryGetProperty("total", out var totals))
         {
-            if (totals.ValueKind == JsonValueKind.Array && totals.GetArrayLength() > 0)
-                totals[0].TryGetDouble(out hashrate);
-            else if (totals.ValueKind == JsonValueKind.Number)
-                totals.TryGetDouble(out hashrate);
+            if (totals.ValueKind == JsonValueKind.Array)
+            {
+                // XMRig legitimately returns null for rolling hashrate windows
+                // until enough samples exist. Ignore null/non-numeric entries.
+                foreach (var sample in totals.EnumerateArray())
+                {
+                    if (sample.ValueKind == JsonValueKind.Number &&
+                        sample.TryGetDouble(out var measuredRate) &&
+                        measuredRate >= 0)
+                    {
+                        hashrate = measuredRate;
+                        break;
+                    }
+                }
+            }
+            else if (totals.ValueKind == JsonValueKind.Number &&
+                     totals.TryGetDouble(out var measuredRate))
+            {
+                hashrate = Math.Max(0, measuredRate);
+            }
         }
 
         var pool = "not connected";
@@ -202,7 +218,9 @@ public sealed class PenaltyRuntimeController : IDisposable
 
     private static long ReadInt64(JsonElement element, string property)
     {
+        // Optional counters can be absent or null during miner startup.
         return element.TryGetProperty(property, out var value) &&
+               value.ValueKind == JsonValueKind.Number &&
                value.TryGetInt64(out var number)
             ? number
             : 0;
