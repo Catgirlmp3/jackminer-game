@@ -22,7 +22,20 @@ public sealed class PenaltySetupService
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "JackMiner", "Runtime", "integrity.json");
 
-    public string ExecutablePath => Path.Combine(_installDirectory, "xmrig.exe");
+    public string ExecutablePath
+    {
+        get
+        {
+            try
+            {
+                var manifest = JsonSerializer.Deserialize<InstallManifest>(File.ReadAllText(_manifestPath));
+                if (manifest is null || string.IsNullOrWhiteSpace(manifest.ExecutableRelativePath))
+                    return Path.Combine(_installDirectory, "xmrig.exe");
+                return Path.GetFullPath(Path.Combine(_installDirectory, manifest.ExecutableRelativePath));
+            }
+            catch { return Path.Combine(_installDirectory, "xmrig.exe"); }
+        }
+    }
 
     public async Task<string> InstallOrRepairAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -57,11 +70,21 @@ public sealed class PenaltySetupService
         progress?.Report($"Downloading verified package {version}...");
         using var packageResponse = await Http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         packageResponse.EnsureSuccessStatusCode();
+        if (packageResponse.Content.Headers.ContentLength is long contentLength && contentLength > MaximumPackageBytes)
+            throw new InvalidDataException("The downloaded package exceeds the permitted size.");
         await using var network = await packageResponse.Content.ReadAsStreamAsync(cancellationToken);
         using var package = new MemoryStream();
-        await network.CopyToAsync(package, cancellationToken);
-        if (package.Length == 0 || package.Length > MaximumPackageBytes)
-            throw new InvalidDataException("The downloaded package size is invalid.");
+        var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await network.ReadAsync(buffer, cancellationToken);
+            if (read == 0) break;
+            if (package.Length + read > MaximumPackageBytes)
+                throw new InvalidDataException("The downloaded package exceeds the permitted size.");
+            await package.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+        if (package.Length == 0 || package.Length != size)
+            throw new InvalidDataException("The downloaded package size does not match the official release metadata.");
 
         package.Position = 0;
         var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(package, cancellationToken)).ToLowerInvariant();
@@ -107,8 +130,17 @@ public sealed class PenaltySetupService
             await File.WriteAllTextAsync(Path.Combine(staging, "integrity.json"),
                 JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
 
-            if (Directory.Exists(_installDirectory)) Directory.Delete(_installDirectory, recursive: true);
-            Directory.Move(staging, _installDirectory);
+            var backup = _installDirectory + ".previous";
+            if (Directory.Exists(backup)) Directory.Delete(backup, recursive: true);
+            if (Directory.Exists(_installDirectory)) Directory.Move(_installDirectory, backup);
+            try { Directory.Move(staging, _installDirectory); }
+            catch
+            {
+                if (Directory.Exists(backup) && !Directory.Exists(_installDirectory))
+                    Directory.Move(backup, _installDirectory);
+                throw;
+            }
+            if (Directory.Exists(backup)) Directory.Delete(backup, recursive: true);
             return version;
         }
         catch
@@ -131,7 +163,7 @@ public sealed class PenaltySetupService
     {
         try
         {
-            if (!File.Exists(_manifestPath)) return null;
+            if (!await VerifyInstalledAsync(cancellationToken)) return null;
             var manifest = JsonSerializer.Deserialize<InstallManifest>(await File.ReadAllTextAsync(_manifestPath, cancellationToken));
             return manifest?.Version;
         }
