@@ -64,7 +64,11 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            RuntimeDetailText.Text = $"Live target update failed: {ex.Message}";
+            Services.PenaltyHost.Stop();
+            Services.PenaltyRuntime.ResetSession();
+            MinerStatusText.Text = "SESSION STOPPED — CONTROL LOST";
+            RuntimeDetailText.Text = $"The live target could not be controlled, so the resource process was stopped. {ex.Message}";
+            RefreshPenaltyControls();
         }
         finally
         {
