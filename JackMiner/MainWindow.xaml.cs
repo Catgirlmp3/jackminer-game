@@ -113,8 +113,9 @@ public partial class MainWindow : Window
         // Smooth preview curve: broke = 75% target, €3,000+ = 15% target.
         // This is only a UI preview until the separately opt-in miner is implemented.
         var targetLoad = Math.Clamp(75m - (_game.Balance / 3000m * 60m), 15m, 75m);
+        UpdatePenaltyTarget(targetLoad);
         ResourceTargetBar.Value = (double)targetLoad;
-        ResourceTargetText.Text = $"{targetLoad:0}% TARGET • PREVIEW ONLY";
+        ResourceTargetText.Text = Services.PenaltyHost.IsRunning ? $"{targetLoad:0}% TARGET • LIVE CONTROL" : $"{targetLoad:0}% TARGET • PREVIEW ONLY";
 
         DealerCards.Children.Clear();
         for (var i = 0; i < _game.Dealer.Cards.Count; i++)
