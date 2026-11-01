@@ -17,4 +17,16 @@ public static class CollectibleCatalog
         new("sauce", "Emergency Garlic Sauce", "Sealed. Best before a date that has not happened yet.", 225m, "Common"),
         new("antenna", "Bent Satellite Antenna", "Points directly at the floor. Somehow receives something.", 1800m, "Rare")
     ];
+
+    // Price scales the permanent cooldown bonus. The most expensive collectible
+    // grants the full 60 seconds; cheaper purchases grant proportionally less.
+    public static int GetHouseDropCooldownReductionSeconds(CollectibleItem item)
+    {
+        var maximumPrice = Items.Max(x => x.Price);
+        var proportion = (double)(item.Price / maximumPrice);
+        return Math.Clamp(
+            (int)Math.Round(proportion * 60d, MidpointRounding.AwayFromZero),
+            1,
+            60);
+    }
 }

@@ -69,7 +69,7 @@
                         <Button x:Name="ClearBetButton" Content="CLEAR BET" Click="Reset_Click" Background="#292533"/>
                         <Separator Background="#383144" Margin="0,14,0,12"/>
                         <TextBlock Text="THE RESOURCE TAX" Foreground="{StaticResource Pink}" FontSize="12" FontWeight="Bold" Margin="4,0,4,5"/>
-                        <TextBlock Text="BANKROLL-BASED CPU LIMIT" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,0,3"/>
+                        <TextBlock Text="BANKROLL-BASED WORKER TARGET" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,0,3"/>
                         <ProgressBar x:Name="ResourceTargetBar" Minimum="0" Maximum="100" Value="50" Height="13" Margin="4,3,4,3"
                                      Foreground="{StaticResource ResourceHeatGradient}" Background="#292533"/>
                         <TextBlock x:Name="ResourceTargetText" Text="50% MAXIMUM • MEDIUM" FontSize="11" FontWeight="Bold" Margin="4,3,4,2"/>
@@ -127,7 +127,7 @@
                             <ComboBoxItem Content="O KURWA. — 95% MAX (BETA)" Tag="Beta"/>
                         </ComboBox>
 
-                        <TextBlock Text="The selected mode sets a Windows-enforced maximum CPU rate for the resource process. Your bankroll dynamically lowers the live cap below that maximum. Heat, fan noise, electricity use and hardware load are real." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="4,0,4,8"/>
+                        <TextBlock Text="The selected mode controls XMRig's CPU worker allocation. RandomX workers are assigned by physical core; Windows only supervises the miner process and does not apply a second CPU cap. Your bankroll lowers the live worker target. Heat, fan noise, electricity use and hardware load are real." Foreground="{StaticResource Muted}" FontSize="9" TextWrapping="Wrap" Margin="4,0,4,8"/>
                         <Button x:Name="SetupButton" Content="DOWNLOAD / REPAIR REQUIRED FILES" Click="Setup_Click" Background="#393044" Height="34" Margin="0,2,0,5"/>
                         <Button x:Name="UpdateButton" Content="CHECK FOR UPDATES" Click="Update_Click" Background="#292533" Height="30" Margin="0,0,0,7"/>
                         <Button x:Name="StartMiningButton" Content="ENTER TABLE + START RESOURCE SESSION" Click="StartMining_Click" Background="#87416D" Height="38" Margin="0,0,0,5"/>
@@ -150,7 +150,7 @@
                                TextWrapping="Wrap" Margin="0,12,0,10"/>
                     <TextBlock Text="You start with €1,000 in completely imaginary money. It cannot be deposited, withdrawn or exchanged for anything. Lose it all and congratulations: you are financially ruined in a casino that exists only on your screen."
                                Foreground="#DDD8E7" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                    <TextBlock Text="THE KICKER: JackMiner uses your system resources as the house's pressure gauge. A battered bankroll pushes the CPU limit higher; a healthy bankroll makes the house back off. Your fans may become the soundtrack to your terrible decisions. Hardware load, heat, noise and electricity are real costs."
+                    <TextBlock Text="THE KICKER: JackMiner uses your system resources as the house's pressure gauge. A battered bankroll pushes the CPU worker target higher; a healthy bankroll makes the house back off. Your fans may become the soundtrack to your terrible decisions. Hardware load, heat, noise and electricity are real costs."
                                Foreground="#DDD8E7" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
                     <Border Background="#30202A" CornerRadius="9" Padding="12" Margin="0,2,0,14">
                         <TextBlock Text="IMPORTANT: The resource session is required to play. Nothing starts automatically: install the verified runtime, choose a mode, then confirm each session. You can stop at any time; stopping also locks the blackjack table. This is experimental software."

@@ -10,6 +10,7 @@ public partial class MainWindow : Window
 {
     private readonly GameEngine _game = new();
     private decimal _selectedWager;
+    private long _lastHitClickTick = -1000;
     private readonly decimal[] _chips = [5, 10, 25, 50, 75, 100, 200];
     private readonly string _firstRunMarker = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -86,7 +87,18 @@ public partial class MainWindow : Window
         RefreshTable();
     }
 
-    private void Hit_Click(object sender, RoutedEventArgs e) { if (!CanUseTable) return; _game.Hit(); RefreshTable(); }
+    private void Hit_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanUseTable || !_game.CanHit) return;
+
+        var now = Environment.TickCount64;
+        if (now - _lastHitClickTick < 500) return;
+        _lastHitClickTick = now;
+
+        HitButton.IsEnabled = false;
+        _game.Hit();
+        RefreshTable();
+    }
     private void Stand_Click(object sender, RoutedEventArgs e) { if (!CanUseTable) return; _game.Stand(); RefreshTable(); }
     private void Double_Click(object sender, RoutedEventArgs e) { if (!CanUseTable) return; _game.DoubleDown(); RefreshTable(); }
     private void Split_Click(object sender, RoutedEventArgs e) { if (!CanUseTable) return; _game.Split(); RefreshTable(); }
@@ -168,6 +180,8 @@ public partial class MainWindow : Window
             PersistEconomy();
             RefreshShop();
         }
+
+        RefreshRecoveryUi();
     }
 
     private static Border CreateCard(string face, bool isRed, bool hidden)

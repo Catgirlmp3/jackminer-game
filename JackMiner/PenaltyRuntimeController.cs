@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -28,6 +29,7 @@ public sealed class PenaltyRuntimeController : IDisposable
     public async Task<MinerRuntimeStatus> StartAsync(
         string executablePath,
         int cpuTarget,
+        int poolPort,
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -39,7 +41,6 @@ public sealed class PenaltyRuntimeController : IDisposable
         var logPath = Path.Combine(runtimeDirectory, "session.log");
         _logPath = logPath;
         var port = GetAvailableLoopbackPort();
-        var poolPort = PenaltyNetworkConstants.SelectPoolPort(cpuTarget);
         progress?.Report($"Preparing XMRig for {PenaltyNetworkConstants.PoolHost}:{poolPort}...");
         _apiToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         _apiEndpoint = new Uri($"http://{PenaltyNetworkConstants.LoopbackAddress}:{port}/");
@@ -53,9 +54,13 @@ public sealed class PenaltyRuntimeController : IDisposable
             ["cpu"] = new JsonObject
             {
                 ["enabled"] = true,
-                ["yield"] = true,
-                ["huge-pages"] = false,
-                ["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 100)
+                ["yield"] = false,
+                ["huge-pages"] = true,
+                ["max-threads-hint"] = Math.Clamp(cpuTarget, 1, 100),
+                // RandomX supports an explicit per-algorithm worker profile.
+                // One worker per physical core avoids wasting the i7's 16 logical
+                // threads on two workers fighting over the same L3 cache.
+                ["rx"] = CreateRandomXThreadProfile(cpuTarget)
             },
             ["randomx"] = new JsonObject { ["rdmsr"] = false, ["wrmsr"] = false },
             ["pools"] = new JsonArray
@@ -80,7 +85,7 @@ public sealed class PenaltyRuntimeController : IDisposable
         };
 
         await File.WriteAllTextAsync(configPath, _activeConfiguration.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
-        _host.StartVerified(executablePath, new[] { $"--config={configPath}", "--no-color" }, runtimeDirectory, cpuTarget);
+        _host.StartVerified(executablePath, new[] { $"--config={configPath}", "--no-color" }, runtimeDirectory);
 
         try
         {
@@ -241,20 +246,29 @@ public sealed class PenaltyRuntimeController : IDisposable
         }
     }
 
-    public async Task<bool> UpdateCpuTargetAsync(int cpuTarget, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateCpuTargetAsync(
+        int cpuTarget,
+        int poolPort,
+        CancellationToken cancellationToken = default)
     {
         if (!_host.IsRunning || _activeConfiguration is null || _apiEndpoint is null)
             return false;
 
-        // This is the actual safety boundary: apply the Windows Job Object hard
-        // cap first. If Windows cannot enforce the new limit, let the caller stop
-        // the session rather than continuing without the requested cap.
-        _host.SetCpuLimit(cpuTarget);
+        // XMRig receives the gameplay target directly. There is deliberately no
+        // second Windows CPU hard cap throttling the process group.
+        var cpu = _activeConfiguration["cpu"] as JsonObject;
+        if (cpu is null) return false;
 
-        // XMRig's local API is only a secondary optimisation for its thread hint.
-        // A transient API error must not terminate the whole session: the Windows
-        // hard cap above is already active and continues to constrain CPU usage.
-        _activeConfiguration["cpu"]!["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 100);
+        cpu["max-threads-hint"] = Math.Clamp(cpuTarget, 1, 100);
+        cpu["rx"] = CreateRandomXThreadProfile(cpuTarget);
+
+        if (_activeConfiguration["pools"] is JsonArray pools &&
+            pools.Count > 0 &&
+            pools[0] is JsonObject pool)
+        {
+            pool["url"] = $"{PenaltyNetworkConstants.PoolHost}:{poolPort}";
+        }
+
         try
         {
             using var content = new StringContent(_activeConfiguration.ToJsonString(), Encoding.UTF8, "application/json");
@@ -304,6 +318,68 @@ public sealed class PenaltyRuntimeController : IDisposable
         ResetSession();
         _api.Dispose();
     }
+
+    private static JsonArray CreateRandomXThreadProfile(int cpuTarget)
+    {
+        var physicalCores = GetPhysicalCoreCount();
+        var workerCount = Math.Clamp(
+            (int)Math.Round(physicalCores * (Math.Clamp(cpuTarget, 1, 100) / 100d), MidpointRounding.AwayFromZero),
+            1,
+            physicalCores);
+
+        var profile = new JsonArray();
+        for (var i = 0; i < workerCount; i++)
+            profile.Add(-1); // -1 = let XMRig schedule this worker.
+        return profile;
+    }
+
+    private static int GetPhysicalCoreCount()
+    {
+        // RelationProcessorCore = 0. Each returned record represents one
+        // physical core, which is the useful unit for RandomX on SMT CPUs.
+        if (OperatingSystem.IsWindows())
+        {
+            uint bufferLength = 0;
+            _ = GetLogicalProcessorInformationEx(0, IntPtr.Zero, ref bufferLength);
+            if (bufferLength >= 8 && bufferLength <= int.MaxValue)
+            {
+                var buffer = Marshal.AllocHGlobal((int)bufferLength);
+                try
+                {
+                    if (GetLogicalProcessorInformationEx(0, buffer, ref bufferLength))
+                    {
+                        var offset = 0;
+                        var coreCount = 0;
+                        var totalLength = checked((int)bufferLength);
+                        while (offset + 8 <= totalLength)
+                        {
+                            var relationship = Marshal.ReadInt32(buffer, offset);
+                            var size = Marshal.ReadInt32(buffer, offset + 4);
+                            if (size < 8 || offset + size > totalLength) break;
+                            if (relationship == 0) coreCount++;
+                            offset += size;
+                        }
+
+                        if (coreCount > 0) return coreCount;
+                    }
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(buffer);
+                }
+            }
+        }
+
+        // Defensive fallback for systems where topology enumeration is unavailable.
+        return Math.Max(1, (Environment.ProcessorCount + 1) / 2);
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetLogicalProcessorInformationEx(
+        int relationshipType,
+        IntPtr buffer,
+        ref uint returnedLength);
 
     private static int GetAvailableLoopbackPort()
     {

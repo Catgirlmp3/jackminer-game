@@ -8,6 +8,11 @@ public sealed class JackMinerEconomyState
     public decimal Balance { get; set; } = 1000m;
     public List<string> OwnedCollectibles { get; set; } = [];
     public DateTimeOffset NextGiveawayUtc { get; set; } = DateTimeOffset.UtcNow.AddMinutes(15);
+
+    // A bailout freezes this clock. If the app closes mid-contract, the next
+    // launch resumes the saved remainder instead of leaving the clock frozen.
+    public bool GiveawayTimerPaused { get; set; }
+    public double GiveawayPausedRemainingSeconds { get; set; }
 }
 
 public sealed class JackMinerEconomyStore
@@ -31,6 +36,17 @@ public sealed class JackMinerEconomyStore
             state.OwnedCollectibles ??= [];
             state.NextGiveawayUtc = state.NextGiveawayUtc == default
                 ? DateTimeOffset.UtcNow.AddMinutes(15) : state.NextGiveawayUtc;
+
+            // A closed app cannot keep a full-system contract running. Resume
+            // the free-drop clock on next launch; interrupted contracts pay nothing.
+            if (state.GiveawayTimerPaused)
+            {
+                var remaining = Math.Clamp(state.GiveawayPausedRemainingSeconds, 0d, TimeSpan.FromMinutes(15).TotalSeconds);
+                state.NextGiveawayUtc = DateTimeOffset.UtcNow.AddSeconds(remaining);
+                state.GiveawayTimerPaused = false;
+                state.GiveawayPausedRemainingSeconds = 0;
+            }
+
             return state;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)

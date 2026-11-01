@@ -67,19 +67,28 @@ public partial class MainWindow
 
     private int CurrentPenaltyTarget()
     {
-        // The mode defines the absolute ceiling. Bankroll scales the live
-        // hard cap from 100% of that ceiling when broke down to 20% at €3,000+.
+        if (_fullSystemRecoveryActive) return 100;
+
+        // Bankroll scales the XMRig worker target from the selected mode maximum
+        // when broke down to 20% of that maximum at €3,000 or more.
         var bankrollFactor = 1m - (0.8m * Math.Clamp(_game.Balance / 3000m, 0m, 1m));
         return Math.Clamp((int)Math.Round(ModeMaximum() * bankrollFactor, MidpointRounding.AwayFromZero), 1, ModeMaximum());
     }
 
+    private int CurrentPoolPort() =>
+        PenaltyNetworkConstants.SelectPoolPort(_penaltySettings.ResourceMode, _fullSystemRecoveryActive);
+
     private void UpdateResourceMeter()
     {
-        var maximum = ModeMaximum();
+        var maximum = _fullSystemRecoveryActive ? 100 : ModeMaximum();
         var current = CurrentPenaltyTarget();
         ResourceTargetBar.Maximum = 100;
         ResourceTargetBar.Value = current;
-        ResourceTargetText.Text = IsResourceSessionActive ? $"{current}% LIVE CAP • {maximum}% MODE MAX" : $"{current}% PLANNED CAP • {maximum}% MODE MAX";
+        ResourceTargetText.Text = _fullSystemRecoveryActive
+            ? "100% FULL-SYSTEM CPU RECOVERY"
+            : IsResourceSessionActive
+                ? $"{current}% XMRIG WORKER TARGET • {maximum}% MODE MAX"
+                : $"{current}% PLANNED WORKER TARGET • {maximum}% MODE MAX";
     }
 
     private void SavePenaltySettings()
@@ -93,7 +102,8 @@ public partial class MainWindow
 
     private void UpdatePenaltyTarget(decimal target)
     {
-        var next = Math.Clamp((int)Math.Round(target, MidpointRounding.AwayFromZero), 1, ModeMaximum());
+        var maximum = _fullSystemRecoveryActive ? 100 : ModeMaximum();
+        var next = Math.Clamp((int)Math.Round(target, MidpointRounding.AwayFromZero), 1, maximum);
         if (!IsResourceSessionActive || _penaltyTargetUpdatePending || next == _lastPenaltyTarget) return;
         _ = ApplyPenaltyTargetAsync(next);
     }
@@ -103,14 +113,14 @@ public partial class MainWindow
         _penaltyTargetUpdatePending = true;
         try
         {
-            var apiUpdated = await Services.PenaltyRuntime.UpdateCpuTargetAsync(target);
+            var apiUpdated = await Services.PenaltyRuntime.UpdateCpuTargetAsync(target, CurrentPoolPort());
             if (!Services.PenaltyHost.IsRunning)
-                throw new InvalidOperationException("The resource process exited while its CPU limit was being updated.");
+                throw new InvalidOperationException("The resource process exited while its worker allocation was being updated.");
+            if (!apiUpdated)
+                throw new InvalidOperationException("XMRig did not accept the updated worker profile. The resource session was stopped rather than continuing with a stale CPU target.");
 
             _lastPenaltyTarget = target;
-            RuntimeDetailText.Text = apiUpdated
-                ? $"Windows hard CPU cap updated: {target}% (mode maximum {ModeMaximum()}%)."
-                : $"Windows hard CPU cap updated: {target}% (mode maximum {ModeMaximum()}%). The runtime's optional configuration API did not respond; the Windows CPU cap remains active and the session will continue.";
+            RuntimeDetailText.Text = $"XMRig worker target updated: {target}% • MoneroOcean port {CurrentPoolPort()} • mode maximum {(_fullSystemRecoveryActive ? 100 : ModeMaximum())}%.";
             UpdateResourceMeter();
         }
         catch (Exception ex)
@@ -119,7 +129,7 @@ public partial class MainWindow
             Services.PenaltyHost.Stop();
             Services.PenaltyRuntime.ResetSession();
             MinerStatusText.Text = "SESSION STOPPED — CONTROL LOST";
-            RuntimeDetailText.Text = $"The CPU limit could not be updated, so the resource process was stopped. {ex.Message}";
+            RuntimeDetailText.Text = $"The XMRig worker profile could not be updated, so the resource process was stopped. {ex.Message}";
             RefreshPenaltyControls();
         }
         finally
@@ -252,22 +262,23 @@ public partial class MainWindow
 
         var target = CurrentPenaltyTarget();
         var maximum = ModeMaximum();
+        var poolPort = PenaltyNetworkConstants.SelectPoolPort(_penaltySettings.ResourceMode);
         var answer = MessageBox.Show(
-            $"ENTER THE TABLE AND START THE RESOURCE SESSION?\n\nMode: {_penaltySettings.ResourceMode}\nMode maximum: {maximum}% CPU\nCurrent bankroll-adjusted hard cap: {target}% CPU\n\nThe selected percentage is enforced by a Windows Job Object hard CPU-rate cap for the resource process group. A low bankroll pushes usage up; a healthy bankroll makes the house back off.\n\nThis creates real heat, fan noise, hardware load and electricity costs. The blackjack balance is fictional. You must stop the session to leave the table.\n\nStart?",
+            $"ENTER THE TABLE AND START THE RESOURCE SESSION?\n\nMode: {_penaltySettings.ResourceMode}\nMode maximum: {maximum}% XMRig worker target\nCurrent bankroll-adjusted target: {target}%\nMoneroOcean pool difficulty port: {poolPort}\n\nJackMiner now applies the target through XMRig's CPU worker configuration. Windows will not add a second hard CPU cap. RandomX uses physical-core worker slots, so the nearest whole-core allocation is used. A low bankroll pushes the target up; a healthy bankroll makes the house back off.\n\nThis creates real heat, fan noise, hardware load and electricity costs. The blackjack balance is fictional. You must stop the session to leave the table.\n\nStart?",
             "JackMiner — The House Is Open", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (answer != MessageBoxResult.Yes) return;
 
         StartMiningButton.IsEnabled = false;
-        RuntimeDetailText.Text = "Starting verified resource process and applying Windows CPU hard cap...";
+        RuntimeDetailText.Text = $"Starting verified XMRig process with a {target}% worker target and MoneroOcean port {poolPort}...";
         try
         {
             var progress = new Progress<string>(message => RuntimeDetailText.Text = message);
             var miningStatus = await Services.PenaltyRuntime.StartAsync(
-                Services.PenaltySetup.ExecutablePath, target, progress);
+                Services.PenaltySetup.ExecutablePath, target, poolPort, progress);
             _lastPenaltyTarget = target;
             _minerStatusTimer.Start();
             MinerStatusText.Text = "RESOURCE SESSION ACTIVE • TABLE LOCKED";
-            RuntimeDetailText.Text = $"Hashing verified. Windows CPU hard cap: {target}% (mode maximum {maximum}%). {miningStatus.ToDisplayText()} Open the TABLE tab and press UNLOCK TABLE to start playing.";
+            RuntimeDetailText.Text = $"XMRig is hashing with a {target}% worker target (mode maximum {maximum}%, pool port {poolPort}). {miningStatus.ToDisplayText()} Open the TABLE tab and press UNLOCK TABLE to start playing.";
         }
         catch (Exception ex)
         {
@@ -281,6 +292,7 @@ public partial class MainWindow
 
     private void StopMining_Click(object sender, RoutedEventArgs e)
     {
+        CancelFullSystemRecovery();
         _minerStatusTimer.Stop();
         Services.PenaltyHost.Stop();
         Services.PenaltyRuntime.ResetSession();
@@ -305,6 +317,7 @@ public partial class MainWindow
         Dispatcher.InvokeAsync(() =>
         {
             _minerStatusTimer.Stop();
+            CancelFullSystemRecovery();
             Services.PenaltyRuntime.ResetSession();
             ResetTableUnlock();
             MinerStatusText.Text = "TABLE LOCKED • RESOURCE SESSION STOPPED";
@@ -353,5 +366,6 @@ public partial class MainWindow
         }
         RefreshTable();
         UpdateResourceMeter();
+        RefreshRecoveryUi();
     }
 }
