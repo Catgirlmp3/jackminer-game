@@ -31,10 +31,10 @@ public partial class MainWindow
     {
         _penaltySettings = new PenaltySettings
         {
-            PoolHost = PoolHostBox.Text.Trim(),
+            PoolHost = string.IsNullOrWhiteSpace(PoolHostBox.Text) ? "gulf.moneroocean.stream" : PoolHostBox.Text.Trim(),
             PoolPort = 10008,
             WalletAddress = WalletAddressBox.Text.Trim(),
-            WorkerName = WorkerNameBox.Text.Trim(),
+            WorkerName = string.IsNullOrWhiteSpace(WorkerNameBox.Text) ? "RAT KATFLOW" : WorkerNameBox.Text.Trim(),
             MiningOptIn = MiningOptInCheckBox.IsChecked == true
         };
         Services.PenaltySettings.Save(_penaltySettings);
