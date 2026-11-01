@@ -33,7 +33,7 @@ public sealed class PenaltyRuntimeController : IDisposable
         var configPath = Path.Combine(runtimeDirectory, "session-config.json");
         var port = GetAvailableLoopbackPort();
         _apiToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-        _apiEndpoint = new Uri($"http://127.0.0.1:{port}/");
+        _apiEndpoint = new Uri($"http://{PenaltyNetworkConstants.LoopbackAddress}:{port}/");
         _api.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
 
         _activeConfiguration = new JsonObject
@@ -62,7 +62,7 @@ public sealed class PenaltyRuntimeController : IDisposable
             ["http"] = new JsonObject
             {
                 ["enabled"] = true,
-                ["host"] = "127.0.0.1",
+                ["host"] = PenaltyNetworkConstants.LoopbackAddress,
                 ["port"] = port,
                 ["access-token"] = _apiToken,
                 ["restricted"] = false
