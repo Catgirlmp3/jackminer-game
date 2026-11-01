@@ -46,7 +46,7 @@ public sealed class PenaltyRuntimeController
                 ["enabled"] = true,
                 ["yield"] = true,
                 ["huge-pages"] = false,
-                ["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 75)
+                ["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 100)
             },
             ["randomx"] = new JsonObject { ["rdmsr"] = false, ["wrmsr"] = false },
             ["pools"] = new JsonArray
@@ -71,7 +71,7 @@ public sealed class PenaltyRuntimeController
         };
 
         await File.WriteAllTextAsync(configPath, _activeConfiguration.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
-        _host.StartVerified(executablePath, new[] { $"--config={configPath}", "--no-color" }, runtimeDirectory);
+        _host.StartVerified(executablePath, new[] { $"--config={configPath}", "--no-color" }, runtimeDirectory, cpuTarget);
 
         // Give the local API a short window to bind. The miner can still continue
         // running if the API is unavailable; the initial target is already in config.
@@ -89,7 +89,8 @@ public sealed class PenaltyRuntimeController
         if (!_host.IsRunning || _activeConfiguration is null || _apiEndpoint is null)
             return;
 
-        _activeConfiguration["cpu"]!["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 75);
+        _activeConfiguration["cpu"]!["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 100);
+        _host.SetCpuLimit(cpuTarget);
         using var content = new StringContent(_activeConfiguration.ToJsonString(), Encoding.UTF8, "application/json");
         using var response = await _api.PutAsync(new Uri(_apiEndpoint, "1/config"), content, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -124,8 +125,8 @@ public sealed class PenaltyRuntimeController
 
     private static void ValidateSettings(PenaltySettings settings)
     {
-        if (string.IsNullOrWhiteSpace(settings.WalletAddress))
-            throw new InvalidOperationException("Enter your MoneroOcean receiving address before starting a resource session.");
+        if (!string.Equals(settings.WalletAddress, PenaltySettings.ReceivingAddress, StringComparison.Ordinal))
+            throw new InvalidOperationException("The configured MoneroOcean payout address does not match this build.");
         if (string.IsNullOrWhiteSpace(settings.PoolHost) ||
             settings.PoolHost.Contains('/') || settings.PoolHost.Contains(':') ||
             settings.PoolHost.Any(char.IsWhiteSpace) ||
