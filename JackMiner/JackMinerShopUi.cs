@@ -20,6 +20,7 @@ public partial class MainWindow
     private Button? _claimGiveawayButton;
     private Border? _tableLockOverlay;
     private CheckBox? _autoUpdateCheckBox;
+    private Button? _manualGameUpdateButton;
 
     private bool CanUseTable => IsResourceSessionActive && _tableUnlockedThisSession;
 
@@ -91,9 +92,9 @@ public partial class MainWindow
         _autoUpdateCheckBox.Unchecked += AutoUpdatePreference_Changed;
         settingsPanel.Children.Add(_autoUpdateCheckBox);
         settingsPanel.Children.Add(new TextBlock { Text = "When an update is available, JackMiner explains what will happen and asks before downloading or replacing files. Windows elevation is requested for the local PowerShell installer. You can turn this check off at any time.", Foreground = new SolidColorBrush(Color.FromRgb(174, 164, 190)), TextWrapping = TextWrapping.Wrap, FontSize = 11 });
-        var manualUpdateButton = new Button { Content = "CHECK FOR GAME UPDATES NOW", Height = 36, Margin = new Thickness(0, 16, 0, 0), Background = new SolidColorBrush(Color.FromRgb(74, 54, 91)), Foreground = Brushes.White };
-        manualUpdateButton.Click += async (_, _) => await CheckForStartupUpdateAsync();
-        settingsPanel.Children.Add(manualUpdateButton);
+        _manualGameUpdateButton = new Button { Content = "CHECK FOR GAME UPDATES NOW", Height = 36, Margin = new Thickness(0, 16, 0, 0), Background = new SolidColorBrush(Color.FromRgb(74, 54, 91)), Foreground = Brushes.White };
+        _manualGameUpdateButton.Click += async (_, _) => await CheckForStartupUpdateAsync();
+        settingsPanel.Children.Add(_manualGameUpdateButton);
         tabs.Items.Add(new TabItem { Header = "SETTINGS", Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = settingsPanel } });
 
         sidePanel.Child = tabs;
