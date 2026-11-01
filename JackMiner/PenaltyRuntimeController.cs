@@ -43,8 +43,10 @@ public sealed class PenaltyRuntimeController
             {
                 ["enabled"] = true,
                 ["yield"] = true,
+                ["huge-pages"] = false,
                 ["max-threads-hint"] = Math.Clamp(cpuTarget, 10, 75)
             },
+            ["randomx"] = new JsonObject { ["rdmsr"] = false, ["wrmsr"] = false },
             ["pools"] = new JsonArray
             {
                 new JsonObject
