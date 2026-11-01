@@ -103,14 +103,16 @@ public sealed class JackMinerUpdateService
             await File.WriteAllTextAsync(scriptPath, BuildPowerShellScript(target, payload, manifest, executable, Environment.ProcessId), cancellationToken);
 
             var powershell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
-            Process.Start(new ProcessStartInfo
+            var updaterProcess = Process.Start(new ProcessStartInfo
             {
                 FileName = powershell,
                 Arguments = "-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File " + Quote(scriptPath),
                 UseShellExecute = true,
                 Verb = "runas",
                 WindowStyle = ProcessWindowStyle.Hidden
-            }) ?? throw new InvalidOperationException("Windows did not start the update helper.");
+            });
+            if (updaterProcess is null)
+                throw new InvalidOperationException("Windows did not start the update helper.");
         }
         catch
         {
