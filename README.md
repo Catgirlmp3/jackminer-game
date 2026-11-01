@@ -1,16 +1,22 @@
 # JackMiner
 
-JackMiner is a Windows desktop blackjack alpha with a planned, optional CPU-mining mechanic. The bankroll is virtual and has no cash value. This is experimental software, not a production release.
+JackMiner is an experimental Windows blackjack game with an optional, separately consented CPU resource session. The blackjack balance is virtual and has no cash value.
 
 ## Alpha-test branch
 
-The `alphatest` branch contains the current WPF game and the first-run warning / resource-tax UI experiment.
+The `alphatest` branch contains the WPF blackjack table, first-run notice, setup controls and optional resource-session integration.
 
-- One WPF main window contains the table, controls, first-run notice and resource meter.
-- The first-run notice is an overlay in that same window, not a second application window. Acknowledgement is stored under the user's Local AppData folder.
-- The resource meter previews a smooth bankroll-to-CPU-target curve: lower bankroll means a higher future target; higher bankroll means a lower target.
-- **The miner is not implemented in this alpha snapshot.** The bar is a preview only and no CPU mining is started.
-- The warning does not enable mining. Any future miner must require a separate explicit opt-in.
+- One WPF main window contains the game, first-run notice, resource meter and session controls.
+- The first-run notice is an overlay in that same window. Acknowledgement is stored under the user's Local AppData folder.
+- Mining is **not** started by accepting the notice. It requires a separate opt-in checkbox, verified runtime files and a confirmation every time a session starts.
+- Download / Repair Required Files retrieves the official XMRig Windows x64 release and checks its SHA-256 from the official XMRig release API before extraction.
+- The installed executable is hashed and checked before each start. Files are stored under the user's Local AppData folder, not in the repository.
+- Check for Updates compares the installed version with the latest official release and asks before replacing files.
+- The runtime uses a loopback-only XMRig HTTP API with a random bearer token to adjust its CPU thread target as the blackjack bankroll changes.
+- The CPU target is a **thread-count hint**, not a precise CPU utilisation limiter. Actual usage varies by CPU topology, cache, algorithm and operating system scheduling.
+- Large Pages and MSR optimisations are disabled in this alpha until separate permission and diagnostics controls are implemented.
+- The session runs as a child process supervised by JackMiner's `PenaltyProcessHost` using a Windows Job Object. The child has its own PID in Task Manager; closing JackMiner terminates the job and its child processes.
+- No Windows service, detached console, tray helper, extra launcher process or Tor integration is used.
 
 ## Blackjack rules
 
@@ -23,29 +29,21 @@ The `alphatest` branch contains the current WPF game and the first-run warning /
 - Hit, stand, double down and one split per round.
 - No insurance, deposits, withdrawals or cash value.
 
-## Planned mining integration
-
-When implemented, mining will use the official prebuilt Windows x64 XMRig release and the owner's MeowKit MoneroOcean profile as editable defaults:
+## Resource-session defaults
 
 - Pool: `gulf.moneroocean.stream:10008`
-- Wallet: the receiving address from the owner's existing MeowKit configuration; not copied into this repository.
-- Worker: `RAT KATFLOW`
-- No Tor integration; direct pool connection only.
-
-Future requirements:
-
-- Download / Repair Required Files and Check for Updates.
-- Verify official release checksums and installed executable SHA-256.
-- Preflight required files before starting game/mining.
-- Explain missing or quarantined files; never silently restore quarantined files or bypass Defender.
-- MSR and Large Pages diagnostics with accurate permission / reboot explanations.
-- Mining is separately opt-in, visible, capped and managed by JackMiner as a child process. No Windows service, detached console, tray helper or extra launcher process.
-- Use a Windows Job Object so the child miner is owned by JackMiner and is terminated when JackMiner exits. The child process may still appear as a child in Task Manager's process tree; Windows does not guarantee every view will collapse it into one row.
-- Smooth, bounded bankroll-based CPU utilisation. The displayed meter is a target preview, not a live CPU sensor.
+- Worker name: `RAT KATFLOW`
+- Wallet: enter your own MoneroOcean receiving address in the app. No wallet address, private key or seed phrase is stored in this repository.
+- The pool and worker are editable locally. The wallet is a public receiving address and is stored in the user's Local AppData settings file.
+- The default CPU target curve is 75% at €0, 55% at €1,000, and 15% at €3,000 or more. These percentages are passed as XMRig's maximum-thread hint, not guaranteed CPU percentages.
 
 ## Security and resource use
 
-JackMiner must not disable Microsoft Defender, tamper with security settings, or add antivirus exclusions automatically. Mining software can trigger antivirus or potentially-unwanted-application detections. Hardware load, heat, fan noise, electricity use and wear are real even though the game balance is fictional.
+JackMiner does not disable Microsoft Defender, add antivirus exclusions, bypass UAC or silently restore quarantined files. If Windows Security quarantines a runtime file, review the alert yourself. Use the explicit repair button only after deciding the download is appropriate.
+
+The local XMRig API listens only on 127.0.0.1 and uses a random per-session bearer token. The local runtime config contains the public wallet address and worker settings. Do not put a private key or seed phrase into the wallet field.
+
+Hardware load, heat, fan noise, electricity use and wear are real even though the game balance is fictional. XMRig's CPU thread hint cannot guarantee a hard percentage cap.
 
 ## Build
 
@@ -53,6 +51,6 @@ JackMiner must not disable Microsoft Defender, tamper with security settings, or
 - Windows desktop development / WPF workload.
 - Open `JackMiner/JackMiner.csproj` and build for Windows.
 
-## Beta status
+## Current limitations
 
-This branch has not yet been compiled or tested on Windows. Mining, updater, integrity preflight, persistence of bankroll / game history, audio, animations and production packaging remain unfinished.
+This branch still needs a successful Windows CI build and hands-on testing. MSR and Large Pages controls, pool connection diagnostics, session hashrate / accepted-share display, bankroll persistence, game history, audio, animations and production packaging are not complete. Do not treat this alpha as production-ready.
