@@ -119,9 +119,11 @@ public sealed class PenaltyRuntimeController
     {
         if (string.IsNullOrWhiteSpace(settings.WalletAddress))
             throw new InvalidOperationException("Enter your MoneroOcean receiving address before starting a resource session.");
-        if (settings.PoolHost.Contains('/') || settings.PoolHost.Contains(':') ||
-            settings.PoolHost.Any(char.IsWhiteSpace))
-            throw new InvalidOperationException("The pool host must be a hostname only, without a port or URL prefix.");
+        if (string.IsNullOrWhiteSpace(settings.PoolHost) ||
+            settings.PoolHost.Contains('/') || settings.PoolHost.Contains(':') ||
+            settings.PoolHost.Any(char.IsWhiteSpace) ||
+            Uri.CheckHostName(settings.PoolHost) == UriHostNameType.Unknown)
+            throw new InvalidOperationException("The pool host must be a valid hostname or IPv4 address, without a port or URL prefix.");
         if (string.IsNullOrWhiteSpace(settings.WorkerName) || settings.WorkerName.Length > 64)
             throw new InvalidOperationException("The worker name must contain between 1 and 64 characters.");
     }
