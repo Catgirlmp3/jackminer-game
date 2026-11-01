@@ -1,7 +1,7 @@
 <Window x:Class="JackMiner.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="JackMiner — Blackjack" Width="1240" Height="820" MinWidth="1080" MinHeight="720"
+        Title="JackMiner — Blackjack" Width="1240" Height="820" MinWidth="1080" MinHeight="720" Loaded="PenaltyUi_Loaded"
         WindowStartupLocation="CenterScreen" Background="{StaticResource Bg}" Foreground="#F7F3FF">
     <Grid Margin="22">
         <Grid.RowDefinitions>
