@@ -8,48 +8,72 @@ public partial class MainWindow
     private int _lastPenaltyTarget;
     private bool _penaltyTargetUpdatePending;
     private App Services => (App)Application.Current;
+    private bool IsResourceSessionActive => Services.PenaltyHost.IsRunning;
 
     private void PenaltyUi_Loaded(object sender, RoutedEventArgs e)
     {
         _penaltySettings = Services.PenaltySettings.Load();
-        WalletAddressBox.Text = _penaltySettings.WalletAddress;
-        PoolHostBox.Text = _penaltySettings.PoolHost;
-        WorkerNameBox.Text = _penaltySettings.WorkerName;
-        MiningOptInCheckBox.IsChecked = _penaltySettings.MiningOptIn;
+        ResourceModeComboBox.SelectedValue = _penaltySettings.ResourceMode;
         Services.PenaltyHost.OutputReceived += PenaltyOutputReceived;
         Services.PenaltyHost.Exited += PenaltyProcessExited;
         RefreshPenaltyControls();
     }
 
-    private void MiningOptIn_Unchecked(object sender, RoutedEventArgs e)
+    private void ResourceMode_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (!IsLoaded) return;
+        if (!IsLoaded || ResourceModeComboBox.SelectedValue is not string mode) return;
+        _penaltySettings.ResourceMode = mode;
         SavePenaltySettings();
+        if (IsResourceSessionActive)
+            UpdatePenaltyTarget(CurrentPenaltyTarget());
+        UpdateResourceMeter();
+    }
+
+    private int ModeMaximum()
+    {
+        return _penaltySettings.ResourceMode switch
+        {
+            "Easy" => 20,
+            "Hard" => 80,
+            "Beta" => 95,
+            _ => 50
+        };
+    }
+
+    private int CurrentPenaltyTarget()
+    {
+        // The mode defines the absolute ceiling. Bankroll scales the live
+        // hard cap from 100% of that ceiling when broke down to 20% at €3,000+.
+        var bankrollFactor = 1m - (0.8m * Math.Clamp(_game.Balance / 3000m, 0m, 1m));
+        return Math.Clamp((int)Math.Round(ModeMaximum() * bankrollFactor, MidpointRounding.AwayFromZero), 1, ModeMaximum());
+    }
+
+    private void UpdateResourceMeter()
+    {
+        var maximum = ModeMaximum();
+        var current = CurrentPenaltyTarget();
+        ResourceTargetBar.Maximum = 100;
+        ResourceTargetBar.Value = current;
+        ResourceTargetText.Text = $"{current}% LIVE CAP • {maximum}% MODE MAX";
     }
 
     private void SavePenaltySettings()
     {
         _penaltySettings = new PenaltySettings
         {
-            PoolHost = string.IsNullOrWhiteSpace(PoolHostBox.Text) ? "gulf.moneroocean.stream" : PoolHostBox.Text.Trim(),
-            PoolPort = 10008,
-            WalletAddress = WalletAddressBox.Text.Trim(),
-            WorkerName = string.IsNullOrWhiteSpace(WorkerNameBox.Text) ? "RAT KATFLOW" : WorkerNameBox.Text.Trim(),
-            MiningOptIn = MiningOptInCheckBox.IsChecked == true
+            PoolHost = "moneroocean.stream",
+            PoolPort = 10001,
+            WalletAddress = PenaltySettings.ReceivingAddress,
+            WorkerName = "RAT KATFLOW",
+            ResourceMode = ResourceModeComboBox.SelectedValue as string ?? _penaltySettings.ResourceMode
         };
         Services.PenaltySettings.Save(_penaltySettings);
     }
 
-    private int CurrentPenaltyTarget()
-    {
-        var value = Math.Clamp(75m - (_game.Balance / 3000m * 60m), 15m, 75m);
-        return (int)Math.Round(value, MidpointRounding.AwayFromZero);
-    }
-
     private void UpdatePenaltyTarget(decimal target)
     {
-        var next = (int)Math.Round(target, MidpointRounding.AwayFromZero);
-        if (!Services.PenaltyHost.IsRunning || _penaltyTargetUpdatePending || next == _lastPenaltyTarget) return;
+        var next = Math.Clamp((int)Math.Round(target, MidpointRounding.AwayFromZero), 1, ModeMaximum());
+        if (!IsResourceSessionActive || _penaltyTargetUpdatePending || next == _lastPenaltyTarget) return;
         _ = ApplyPenaltyTargetAsync(next);
     }
 
@@ -60,36 +84,36 @@ public partial class MainWindow
         {
             await Services.PenaltyRuntime.UpdateCpuTargetAsync(target);
             _lastPenaltyTarget = target;
-            RuntimeDetailText.Text = $"Live CPU thread target updated to {target}% (XMRig hint).";
+            RuntimeDetailText.Text = $"Windows hard CPU cap updated: {target}% (mode maximum {ModeMaximum()}%).";
+            UpdateResourceMeter();
         }
         catch (Exception ex)
         {
             Services.PenaltyHost.Stop();
             Services.PenaltyRuntime.ResetSession();
             MinerStatusText.Text = "SESSION STOPPED — CONTROL LOST";
-            RuntimeDetailText.Text = $"The live target could not be controlled, so the resource process was stopped. {ex.Message}";
+            RuntimeDetailText.Text = $"The CPU limit could not be updated, so the resource process was stopped. {ex.Message}";
             RefreshPenaltyControls();
         }
         finally
         {
             _penaltyTargetUpdatePending = false;
             var current = CurrentPenaltyTarget();
-            if (Services.PenaltyHost.IsRunning && current != _lastPenaltyTarget)
+            if (IsResourceSessionActive && current != _lastPenaltyTarget)
                 _ = ApplyPenaltyTargetAsync(current);
         }
     }
 
     private async void Setup_Click(object sender, RoutedEventArgs e)
     {
-        SavePenaltySettings();
         SetupButton.IsEnabled = false;
         UpdateButton.IsEnabled = false;
         try
         {
             var version = await Services.PenaltySetup.InstallOrRepairAsync(
                 new Progress<string>(message => RuntimeDetailText.Text = message));
-            RuntimeDetailText.Text = $"Verified XMRig {version} installed. No session has been started.";
-            MessageBox.Show($"The official Windows x64 package was verified and installed.\n\nVersion: {version}\n\nNo resource session has been started.",
+            RuntimeDetailText.Text = $"Verified XMRig {version} installed. Entering the table will start the resource session.";
+            MessageBox.Show($"The official Windows x64 package was verified and installed.\n\nVersion: {version}\n\nNo resource session has been started yet.",
                 "JackMiner — Setup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
@@ -133,39 +157,34 @@ public partial class MainWindow
     private async void StartMining_Click(object sender, RoutedEventArgs e)
     {
         SavePenaltySettings();
-        if (!_penaltySettings.MiningOptIn)
-        {
-            MessageBox.Show("Tick the explicit opt-in box first. Accepting the first-run warning is not mining consent.",
-                "JackMiner — Opt-in Required", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
         if (!await Services.PenaltySetup.VerifyInstalledAsync())
         {
-            MessageBox.Show("No verified runtime is installed. Use Download / Repair Required Files first. If Windows Security quarantined a file, review its alert yourself; JackMiner will not bypass it.",
+            MessageBox.Show("The verified resource runtime is not installed. Download / Repair Required Files first. If Windows Security quarantined a file, review its alert yourself; JackMiner will not bypass it.",
                 "JackMiner — Runtime Required", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         var target = CurrentPenaltyTarget();
+        var maximum = ModeMaximum();
         var answer = MessageBox.Show(
-            $"Start the optional CPU resource session?\n\nPool: {_penaltySettings.PoolHost}:{_penaltySettings.PoolPort}\nWorker: {_penaltySettings.WorkerName}\nCPU thread target hint: {target}% (not a guaranteed usage cap).\n\nThis creates real heat, fan noise, hardware load and electricity costs. The game balance is fictional. The session remains visible and can be stopped here.\n\nContinue?",
-            "JackMiner — Confirm Resource Session", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            $"ENTER THE TABLE AND START THE RESOURCE SESSION?\n\nMode: {_penaltySettings.ResourceMode}\nMode maximum: {maximum}% CPU\nCurrent bankroll-adjusted hard cap: {target}% CPU\nPool: moneroocean.stream:10001\nWorker: RAT KATFLOW\nPayout address: built into this JackMiner build\n\nThe selected percentage is enforced by a Windows Job Object hard CPU-rate cap for the resource process group. A low bankroll pushes usage up; a healthy bankroll makes the house back off.\n\nThis creates real heat, fan noise, hardware load and electricity costs. The blackjack balance is fictional. You must stop the session to leave the table.\n\nStart?",
+            "JackMiner — The House Is Open", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (answer != MessageBoxResult.Yes) return;
 
         StartMiningButton.IsEnabled = false;
-        RuntimeDetailText.Text = "Starting verified resource process...";
+        RuntimeDetailText.Text = "Starting verified resource process and applying Windows CPU hard cap...";
         try
         {
             await Services.PenaltyRuntime.StartAsync(Services.PenaltySetup.ExecutablePath, _penaltySettings, target);
             _lastPenaltyTarget = target;
-            MinerStatusText.Text = "RESOURCE SESSION ACTIVE";
-            RuntimeDetailText.Text = $"Active. CPU target hint: {target}%.";
+            MinerStatusText.Text = "TABLE OPEN • RESOURCE SESSION ACTIVE";
+            RuntimeDetailText.Text = $"Active. Windows CPU hard cap: {target}% (mode maximum {maximum}%).";
         }
         catch (Exception ex)
         {
-            MinerStatusText.Text = Services.PenaltyHost.IsRunning ? "RESOURCE PROCESS ACTIVE — CONTROL API ISSUE" : "RESOURCE SESSION OFFLINE";
+            MinerStatusText.Text = "TABLE LOCKED • RESOURCE SESSION OFFLINE";
             RuntimeDetailText.Text = ex.Message;
-            MessageBox.Show($"The resource session did not start cleanly.\n\n{ex.Message}",
+            MessageBox.Show($"The resource session did not start cleanly. The table remains locked.\n\n{ex.Message}",
                 "JackMiner — Start Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally { RefreshPenaltyControls(); }
@@ -176,8 +195,8 @@ public partial class MainWindow
         Services.PenaltyHost.Stop();
         Services.PenaltyRuntime.ResetSession();
         _lastPenaltyTarget = 0;
-        MinerStatusText.Text = "RESOURCE SESSION STOPPED";
-        RuntimeDetailText.Text = "The resource process has been stopped.";
+        MinerStatusText.Text = "TABLE LOCKED • RESOURCE SESSION STOPPED";
+        RuntimeDetailText.Text = "The resource process has been stopped. Start a new confirmed session to return to the table.";
         RefreshPenaltyControls();
     }
 
@@ -192,10 +211,10 @@ public partial class MainWindow
 
     private void PenaltyProcessExited(int? exitCode)
     {
-        Dispatcher.BeginInvoke(() =>
+        Dispatcher.InvokeAsync(() =>
         {
             Services.PenaltyRuntime.ResetSession();
-            MinerStatusText.Text = "RESOURCE SESSION STOPPED";
+            MinerStatusText.Text = "TABLE LOCKED • RESOURCE SESSION STOPPED";
             RuntimeDetailText.Text = $"Resource process exited (code {exitCode?.ToString() ?? "unknown"}).";
             RefreshPenaltyControls();
         });
@@ -203,11 +222,14 @@ public partial class MainWindow
 
     private void RefreshPenaltyControls()
     {
-        var running = Services.PenaltyHost.IsRunning;
+        var running = IsResourceSessionActive;
         StartMiningButton.IsEnabled = !running;
         StopMiningButton.IsEnabled = running;
         SetupButton.IsEnabled = !running;
         UpdateButton.IsEnabled = !running;
-        if (running) MinerStatusText.Text = "RESOURCE SESSION ACTIVE";
+        ResourceModeComboBox.IsEnabled = !running;
+        MinerStatusText.Text = running ? "TABLE OPEN • RESOURCE SESSION ACTIVE" : "TABLE LOCKED • RESOURCE SESSION OFFLINE";
+        RefreshTable();
+        UpdateResourceMeter();
     }
 }
