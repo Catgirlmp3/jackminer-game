@@ -24,6 +24,7 @@ public sealed class PenaltyRuntimeController : IDisposable
     private Uri? _apiEndpoint;
     private string? _apiToken;
     private string? _logPath;
+    public string? LastConfigurationUpdateError { get; private set; }
 
     public PenaltyRuntimeController(PenaltyProcessHost host) => _host = host;
 
@@ -252,18 +253,27 @@ public sealed class PenaltyRuntimeController : IDisposable
         int poolPort,
         CancellationToken cancellationToken = default)
     {
+        LastConfigurationUpdateError = null;
         if (!_host.IsRunning || _activeConfiguration is null || _apiEndpoint is null)
+        {
+            LastConfigurationUpdateError = "The XMRig control API is not available.";
             return false;
+        }
 
-        // XMRig receives the gameplay target directly. There is deliberately no
-        // second Windows CPU hard cap throttling the process group.
-        var cpu = _activeConfiguration["cpu"] as JsonObject;
-        if (cpu is null) return false;
+        // Use a candidate copy: a rejected API update must not replace the
+        // last known-good profile used by the running miner.
+        var candidate = (JsonObject)_activeConfiguration.DeepClone();
+        var cpu = candidate["cpu"] as JsonObject;
+        if (cpu is null)
+        {
+            LastConfigurationUpdateError = "The active XMRig configuration has no CPU section.";
+            return false;
+        }
 
         cpu["max-threads-hint"] = Math.Clamp(cpuTarget, 1, 100);
         cpu["rx"] = CreateRandomXThreadProfile(cpuTarget);
 
-        if (_activeConfiguration["pools"] is JsonArray pools &&
+        if (candidate["pools"] is JsonArray pools &&
             pools.Count > 0 &&
             pools[0] is JsonObject pool)
         {
@@ -272,16 +282,28 @@ public sealed class PenaltyRuntimeController : IDisposable
 
         try
         {
-            using var content = new StringContent(_activeConfiguration.ToJsonString(), Encoding.UTF8, "application/json");
+            using var content = new StringContent(candidate.ToJsonString(), Encoding.UTF8, "application/json");
             using var response = await _api.PutAsync(new Uri(_apiEndpoint, "1/config"), content, cancellationToken);
-            return response.IsSuccessStatusCode;
+            if (!response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                LastConfigurationUpdateError =
+                    $"XMRig returned HTTP {(int)response.StatusCode} {response.ReasonPhrase}: " +
+                    (string.IsNullOrWhiteSpace(responseBody) ? "no response details" : responseBody.Trim());
+                return false;
+            }
+
+            _activeConfiguration = candidate;
+            return true;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
+            LastConfigurationUpdateError = ex.Message;
             return false;
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
+            LastConfigurationUpdateError = ex.Message;
             return false;
         }
     }
@@ -320,7 +342,7 @@ public sealed class PenaltyRuntimeController : IDisposable
         _api.Dispose();
     }
 
-    private static JsonArray CreateRandomXThreadProfile(int cpuTarget)
+    public static int GetRandomXWorkerCount(int cpuTarget)
     {
         var physicalCores = GetPhysicalCoreCount();
         var workerCount = Math.Clamp(
@@ -329,14 +351,18 @@ public sealed class PenaltyRuntimeController : IDisposable
             physicalCores);
 
         // Keep the final physical core exclusive to an explicit 100% recovery
-        // contract. Otherwise 95% rounds up to all cores on an 8-core CPU,
-        // making the bailout indistinguishable from the hardest normal mode.
+        // contract. Otherwise 95% rounds up to all cores on an 8-core CPU.
         if (cpuTarget < 100 && physicalCores > 1)
             workerCount = Math.Min(workerCount, physicalCores - 1);
 
+        return workerCount;
+    }
+
+    private static JsonArray CreateRandomXThreadProfile(int cpuTarget)
+    {
         var profile = new JsonArray();
-        for (var i = 0; i < workerCount; i++)
-            profile.Add(-1); // -1 = let XMRig schedule this worker.
+        for (var i = 0; i < GetRandomXWorkerCount(cpuTarget); i++)
+            profile.Add(-1);
         return profile;
     }
 

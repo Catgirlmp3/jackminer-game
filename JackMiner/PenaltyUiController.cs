@@ -8,6 +8,10 @@ public partial class MainWindow
 {
     private PenaltySettings _penaltySettings = new();
     private int _lastPenaltyTarget;
+    private int _lastAppliedWorkerCount = -1;
+    private int _lastAppliedPoolPort = -1;
+    private int _lastFailedWorkerCount = -1;
+    private int _lastFailedPoolPort = -1;
     private bool _penaltyTargetUpdatePending;
     private bool _runtimeMaintenanceInProgress;
     private readonly DispatcherTimer _minerStatusTimer = new() { Interval = TimeSpan.FromSeconds(3) };
@@ -102,42 +106,76 @@ public partial class MainWindow
 
     private void UpdatePenaltyTarget(decimal target)
     {
-        var maximum = _fullSystemRecoveryActive ? 100 : ModeMaximum();
-        var next = Math.Clamp((int)Math.Round(target, MidpointRounding.AwayFromZero), 1, maximum);
-        if (!IsResourceSessionActive || _penaltyTargetUpdatePending || next == _lastPenaltyTarget) return;
-        _ = ApplyPenaltyTargetAsync(next);
+        if (!IsResourceSessionActive || _penaltyTargetUpdatePending || _fullSystemRecoveryActive)
+            return;
+
+        var next = Math.Clamp((int)Math.Round(target, MidpointRounding.AwayFromZero), 1, ModeMaximum());
+        var poolPort = CurrentPoolPort();
+        var workerCount = PenaltyRuntimeController.GetRandomXWorkerCount(next);
+
+        // A balance change may move the displayed percentage without changing
+        // the whole-core RandomX worker count. Avoid needless API PUT requests.
+        if (workerCount == _lastAppliedWorkerCount && poolPort == _lastAppliedPoolPort)
+        {
+            _lastPenaltyTarget = next;
+            _lastFailedWorkerCount = -1;
+            _lastFailedPoolPort = -1;
+            return;
+        }
+
+        // Remember a rejected target. Retry only when the desired worker count
+        // or pool port changes, not on every UI refresh.
+        if (workerCount == _lastFailedWorkerCount && poolPort == _lastFailedPoolPort)
+            return;
+
+        _ = ApplyPenaltyTargetAsync(next, workerCount, poolPort);
     }
 
-    private async Task ApplyPenaltyTargetAsync(int target)
+    private async Task ApplyPenaltyTargetAsync(int target, int workerCount, int poolPort)
     {
         _penaltyTargetUpdatePending = true;
         try
         {
-            var apiUpdated = await Services.PenaltyRuntime.UpdateCpuTargetAsync(target, CurrentPoolPort());
+            var apiUpdated = await Services.PenaltyRuntime.UpdateCpuTargetAsync(target, poolPort);
             if (!Services.PenaltyHost.IsRunning)
-                throw new InvalidOperationException("The resource process exited while its worker allocation was being updated.");
-            if (!apiUpdated)
-                throw new InvalidOperationException("XMRig did not accept the updated worker profile. The resource session was stopped rather than continuing with a stale CPU target.");
+                return;
 
+            if (!apiUpdated)
+            {
+                _lastFailedWorkerCount = workerCount;
+                _lastFailedPoolPort = poolPort;
+                var detail = Services.PenaltyRuntime.LastConfigurationUpdateError ?? "No error details were returned.";
+                RuntimeDetailText.Text =
+                    $"XMRig rejected the change to {workerCount} workers (pool port {poolPort}). " +
+                    $"The previous mining profile remains active and the table stays unlocked. {detail}";
+                return;
+            }
+
+            _lastAppliedWorkerCount = workerCount;
+            _lastAppliedPoolPort = poolPort;
+            _lastFailedWorkerCount = -1;
+            _lastFailedPoolPort = -1;
             _lastPenaltyTarget = target;
-            RuntimeDetailText.Text = $"XMRig worker target updated: {target}% • MoneroOcean port {CurrentPoolPort()} • mode maximum {(_fullSystemRecoveryActive ? 100 : ModeMaximum())}%.";
+            RuntimeDetailText.Text =
+                $"XMRig worker allocation updated: {workerCount} physical-core workers • " +
+                $"{target}% target • MoneroOcean port {poolPort}.";
             UpdateResourceMeter();
         }
         catch (Exception ex)
         {
-            _minerStatusTimer.Stop();
-            Services.PenaltyHost.Stop();
-            Services.PenaltyRuntime.ResetSession();
-            MinerStatusText.Text = "SESSION STOPPED — CONTROL LOST";
-            RuntimeDetailText.Text = $"The XMRig worker profile could not be updated, so the resource process was stopped. {ex.Message}";
-            RefreshPenaltyControls();
+            if (IsResourceSessionActive)
+            {
+                _lastFailedWorkerCount = workerCount;
+                _lastFailedPoolPort = poolPort;
+                RuntimeDetailText.Text =
+                    $"Could not adjust the XMRig worker allocation. The existing session and table remain active. {ex.Message}";
+            }
         }
         finally
         {
             _penaltyTargetUpdatePending = false;
-            var current = CurrentPenaltyTarget();
-            if (IsResourceSessionActive && current != _lastPenaltyTarget)
-                _ = ApplyPenaltyTargetAsync(current);
+            if (IsResourceSessionActive && !_fullSystemRecoveryActive)
+                UpdatePenaltyTarget(CurrentPenaltyTarget());
         }
     }
 
@@ -276,6 +314,10 @@ public partial class MainWindow
             var miningStatus = await Services.PenaltyRuntime.StartAsync(
                 Services.PenaltySetup.ExecutablePath, target, poolPort, progress);
             _lastPenaltyTarget = target;
+            _lastAppliedWorkerCount = PenaltyRuntimeController.GetRandomXWorkerCount(target);
+            _lastAppliedPoolPort = poolPort;
+            _lastFailedWorkerCount = -1;
+            _lastFailedPoolPort = -1;
             _minerStatusTimer.Start();
             MinerStatusText.Text = "RESOURCE SESSION ACTIVE • TABLE LOCKED";
             RuntimeDetailText.Text = $"XMRig is hashing with a {target}% worker target (mode maximum {maximum}%, pool port {poolPort}). {miningStatus.ToDisplayText()} Open the TABLE tab and press UNLOCK TABLE to start playing.";
@@ -297,6 +339,10 @@ public partial class MainWindow
         Services.PenaltyHost.Stop();
         Services.PenaltyRuntime.ResetSession();
         _lastPenaltyTarget = 0;
+        _lastAppliedWorkerCount = -1;
+        _lastAppliedPoolPort = -1;
+        _lastFailedWorkerCount = -1;
+        _lastFailedPoolPort = -1;
         ResetTableUnlock();
         MinerStatusText.Text = "TABLE LOCKED • RESOURCE SESSION STOPPED";
         RuntimeDetailText.Text = "The resource process has been stopped. Start a new confirmed session to return to the table.";

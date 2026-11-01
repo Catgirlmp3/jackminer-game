@@ -498,6 +498,10 @@ public partial class MainWindow
             if (!updated || !IsResourceSessionActive)
                 throw new InvalidOperationException("XMRig did not accept the full-system worker profile.");
 
+            _lastAppliedWorkerCount = PenaltyRuntimeController.GetRandomXWorkerCount(100);
+            _lastAppliedPoolPort = poolPort;
+            _lastFailedWorkerCount = -1;
+            _lastFailedPoolPort = -1;
             _fullSystemEndsUtc = DateTimeOffset.UtcNow.AddMinutes(contract.Minutes);
             _fullSystemTimer.Start();
             RuntimeDetailText.Text = $"FULL-SYSTEM RECOVERY ACTIVE • 100% CPU worker allocation • {contract.Minutes} minutes • €{contract.Reward:N0} virtual credit on completion • pool port {poolPort}.";
@@ -519,7 +523,12 @@ public partial class MainWindow
                 var restored = await Services.PenaltyRuntime.UpdateCpuTargetAsync(
                     normalTarget,
                     PenaltyNetworkConstants.SelectPoolPort(_penaltySettings.ResourceMode));
-                if (restored) _lastPenaltyTarget = normalTarget;
+                if (restored)
+                {
+                    _lastPenaltyTarget = normalTarget;
+                    _lastAppliedWorkerCount = PenaltyRuntimeController.GetRandomXWorkerCount(normalTarget);
+                    _lastAppliedPoolPort = PenaltyNetworkConstants.SelectPoolPort(_penaltySettings.ResourceMode);
+                }
                 else
                 {
                     Services.PenaltyHost.Stop();
@@ -573,6 +582,10 @@ public partial class MainWindow
                 throw new InvalidOperationException("XMRig did not accept the normal worker profile after recovery.");
 
             _lastPenaltyTarget = normalTarget;
+            _lastAppliedWorkerCount = PenaltyRuntimeController.GetRandomXWorkerCount(normalTarget);
+            _lastAppliedPoolPort = normalPort;
+            _lastFailedWorkerCount = -1;
+            _lastFailedPoolPort = -1;
             _tableUnlockedThisSession = _tableWasUnlockedBeforeRecovery;
             if (_unlockTableButton is not null)
             {
