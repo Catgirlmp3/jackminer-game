@@ -84,7 +84,7 @@
                         <TextBlock Text="CHOOSE YOUR HOUSE PRESSURE" Foreground="{StaticResource Muted}" FontSize="9" Margin="4,0,4,4"/>
                         <ComboBox x:Name="ResourceModeComboBox" SelectedValuePath="Tag" SelectedValue="Medium"
                                   SelectionChanged="ResourceMode_SelectionChanged" Height="32" Margin="3,0,3,5"
-                                  Background="#17141F" Foreground="#17141F">
+                                  Background="#17141F" Foreground="#FFFFFF">
                             <ComboBoxItem Content="EASY — 20% MAX" Tag="Easy"/>
                             <ComboBoxItem Content="MEDIUM — 50% MAX" Tag="Medium"/>
                             <ComboBoxItem Content="HARD — 80% MAX" Tag="Hard"/>
